@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "dentÁl árlista",
+  "short_name": "dentÁl",
+  "description": "Orvosonkénti árak, egyoldalas A4-es PDF árlista telefonról.",
+  "lang": "hu",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

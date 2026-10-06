@@ -1,0 +1,2340 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<script>
+/* =========================================================================
+   CONFIG — a cég adatai és a PDF beállításai. Csak ezt a részt kell átírni.
+   ========================================================================= */
+window.CONFIG = {
+  cegnev: "dentÁl",
+  cim: "1234 Budapest, Minta utca 1.",       // a PDF fejlécében, a logó alatt (üresen hagyva elmarad)
+  telefon: "+36 1 234 5678",
+  email: "info@example.com",
+
+  // Logó: "#logo-szines" = a fájl végére beágyazott dental-logo.svg (a logo-szines sablon).
+  // Saját logóhoz ide egy teljes "<svg …>…</svg>" szöveg is írható (világos háttérre készült logó legyen).
+  logo: "#logo-szines",
+  logoMono: "#logo-mono",                    // egyszínű változat (dental-logo-mono.svg)
+  pdfSzinesLogo: true,                       // true: színes logó a PDF-ben; false: egyszínű (fekete-fehér nyomtatáshoz)
+
+  pdfLabjegyzet: "Kérdés esetén keressen minket bizalommal a fenti elérhetőségeken.",
+  ervenyessegNapok: 30,                      // az árlista érvényessége napokban (0 = nem írja ki)
+  nullazasGeneralasUtan: true,               // a PDF elkészítése után a mennyiségek nullázódnak (mint a makróban)
+  cimzettElotag: "Dr. "                      // a PDF-en a név elé kerül („Dr. Anna”); üresen hagyva elmarad
+};
+</script>
+<title>dentÁl árlista</title>
+<meta name="description" content="dentÁl árlista-generáló: orvosonkénti árak, egyoldalas A4-es PDF árlista telefonról.">
+<meta name="application-name" content="dentÁl">
+<meta name="apple-mobile-web-app-title" content="dentÁl">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="color-scheme" content="light only">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNC4wOCIgZmlsbD0iI0ZGRkZGRiIvPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDExLjYzNCw1LjQxMCkgc2NhbGUoMC4wMzgwNjcpIj48cGF0aCBmaWxsPSIjMkY3RDZEIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0zODMsMzAwIEw2ODcsMzAwIEwxMDQ0LjUsMTM3MSBMNzc0LDEzNzEgTDY4Mi41LDEwNjYgTDM4Ny41LDEwNjYgTDI5NiwxMzcxIEwyNS41LDEzNzEgWiBNNDQ5LjAsMTk5LjAgTDYyNy4wLDE5OS4wIEw3MzEuMCwyNi4wIEw0OTkuMCwyNi4wIFogTTQ0Ni4wLDUwOS43IEM0NTEuMiw1MDkuMiA0NTYuMiw1MDkuMSA0NjEuMyw1MDkuNiBDNDY2LjMsNTEwLjIgNDcxLjMsNTExLjcgNDc2LjEsNTEzLjIgQzQ4MS4wLDUxNC43IDQ4NS43LDUxNi44IDQ5MC4zLDUxOC45IEM0OTQuOSw1MjEuMSA0OTkuMiw1MjQuMCA1MDMuOCw1MjYuMSBDNTA4LjUsNTI4LjEgNTEzLjQsNTI5LjggNTE4LjMsNTMxLjEgQzUyMy4yLDUzMi4zIDUyOC40LDUzMy4yIDUzMy40LDUzMy40IEM1MzguNSw1MzMuNiA1NDMuNiw1MzMuMSA1NDguNiw1MzIuMSBDNTUzLjYsNTMxLjAgNTU4LjQsNTI5LjIgNTYzLjEsNTI3LjQgQzU2Ny45LDUyNS41IDU3Mi40LDUyMy4wIDU3Ny4xLDUyMS4wIEM1ODEuOCw1MTkuMCA1ODYuNSw1MTYuOSA1OTEuMyw1MTUuNSBDNTk2LjIsNTE0LjAgNjAxLjIsNTEyLjggNjA2LjIsNTEyLjEgQzYxMS4zLDUxMS4zIDYxNi40LDUxMS4wIDYyMS41LDUxMS4wIEM2MjYuNiw1MTEuMCA2MzEuNyw1MTEuMiA2MzYuNyw1MTIuMCBDNjQxLjgsNTEyLjggNjQ2LjgsNTE0LjEgNjUxLjYsNTE1LjYgQzY1Ni40LDUxNy4yIDY2MS4yLDUxOS4xIDY2NS43LDUyMS41IEM2NzAuMiw1MjMuOCA2NzQuNiw1MjYuNiA2NzguNiw1MjkuNyBDNjgyLjcsNTMyLjcgNjg2LjYsNTM2LjEgNjkwLjEsNTM5LjggQzY5My43LDU0My40IDY5Ny4wLDU0Ny40IDY5OS45LDU1MS41IEM3MDIuOCw1NTUuNyA3MDUuNCw1NjAuMiA3MDcuNSw1NjQuOCBDNzA5LjYsNTY5LjQgNzExLjMsNTc0LjMgNzEyLjUsNTc5LjIgQzcxMy43LDU4NC4yIDcxNC41LDU4OS4zIDcxNC45LDU5NC4zIEM3MTUuMyw1OTkuNCA3MTUuNCw2MDQuNiA3MTUuMSw2MDkuNiBDNzE0LjgsNjE0LjcgNzE0LjEsNjE5LjggNzEzLjAsNjI0LjggQzcxMS44LDYyOS43IDcwOS44LDYzNC41IDcwOC4xLDYzOS4zIEM3MDYuNSw2NDQuMSA3MDQuNiw2NDguOCA3MDIuOCw2NTMuNiBDNzAxLjEsNjU4LjQgNjk5LjQsNjYzLjIgNjk3LjgsNjY4LjEgQzY5Ni4zLDY3My4wIDY5NC44LDY3Ny44IDY5My40LDY4Mi43IEM2OTIuMSw2ODcuNyA2OTAuOSw2OTIuNiA2ODkuNiw2OTcuNiBDNjg4LjQsNzAyLjUgNjg3LjIsNzA3LjUgNjg2LjEsNzEyLjUgQzY4NC45LDcxNy40IDY4My44LDcyMi40IDY4Mi44LDcyNy40IEM2ODEuOCw3MzIuNCA2ODAuOSw3MzcuNCA2ODAuMCw3NDIuNSBDNjc5LjAsNzQ3LjUgNjc4LjEsNzUyLjUgNjc3LjIsNzU3LjUgQzY3Ni40LDc2Mi41IDY3NS40LDc2Ny42IDY3NC43LDc3Mi42IEM2NzQuMCw3NzcuNyA2NzMuNyw3ODIuOCA2NzIuOSw3ODcuOCBDNjcyLjEsNzkyLjggNjcxLjAsNzk3LjkgNjY5LjgsODAyLjggQzY2OC42LDgwNy44IDY2Ny40LDgxMi43IDY2NS43LDgxNy41IEM2NjQuMCw4MjIuMyA2NjEuOSw4MjcuMCA2NTkuNyw4MzEuNiBDNjU3LjQsODM2LjIgNjU1LjAsODQwLjcgNjUyLjIsODQ1LjAgQzY0OS40LDg0OS4yIDY0Ni4xLDg1My4yIDY0Mi44LDg1Ny4wIEM2MzkuNSw4NjAuOSA2MzYuMSw4NjQuOCA2MzIuMyw4NjguMiBDNjI4LjUsODcxLjYgNjI0LjYsODc1LjIgNjIwLjIsODc3LjQgQzYxNS43LDg3OS43IDYxMC41LDg4MS43IDYwNS43LDg4MS43IEM2MDAuOSw4ODEuNiA1OTUuMSw4ODAuMCA1OTEuNCw4NzcuMiBDNTg3LjYsODc0LjMgNTg1LjQsODY4LjkgNTgzLjIsODY0LjQgQzU4MC45LDg1OS45IDU3OS43LDg1NC44IDU3OC4wLDg1MC4wIEM1NzYuMiw4NDUuMyA1NzQuNSw4NDAuNSA1NzIuNyw4MzUuNyBDNTcxLjAsODMwLjkgNTY5LjEsODI2LjIgNTY3LjQsODIxLjQgQzU2NS44LDgxNi42IDU2NC41LDgxMS42IDU2Mi43LDgwNi44IEM1NjAuOSw4MDIuMSA1NTguOCw3OTcuNCA1NTYuNSw3OTIuOSBDNTU0LjEsNzg4LjQgNTUyLjEsNzgzLjIgNTQ4LjYsNzc5LjggQzU0NS4wLDc3Ni41IDUzOS45LDc3My4yIDUzNS40LDc3Mi43IEM1MzAuOCw3NzIuMyA1MjUuMCw3NzQuMiA1MjEuMiw3NzcuMCBDNTE3LjQsNzc5LjggNTE1LjAsNzg1LjEgNTEyLjQsNzg5LjQgQzUwOS45LDc5My44IDUwNy45LDc5OC42IDUwNS45LDgwMy4zIEM1MDMuOCw4MDguMCA1MDIuMCw4MTIuNyA1MDAuMiw4MTcuNSBDNDk4LjMsODIyLjIgNDk2LjUsODI3LjAgNDk0LjcsODMxLjggQzQ5My4wLDgzNi42IDQ5MS4zLDg0MS40IDQ4OS42LDg0Ni4yIEM0ODcuOSw4NTEuMCA0ODYuNSw4NTYuMCA0ODQuNCw4NjAuNiBDNDgyLjMsODY1LjIgNDgwLjUsODcwLjYgNDc3LjEsODc0LjAgQzQ3My44LDg3Ny41IDQ2OC44LDg4MC42IDQ2NC4xLDg4MS40IEM0NTkuNSw4ODIuMiA0NTMuOSw4ODAuNiA0NDkuMyw4NzguOCBDNDQ0LjcsODc2LjkgNDQwLjYsODczLjQgNDM2LjcsODcwLjIgQzQzMi44LDg2Ni45IDQyOS4yLDg2My4yIDQyNS44LDg1OS40IEM0MjIuNSw4NTUuNiA0MTkuMiw4NTEuNiA0MTYuNCw4NDcuNCBDNDEzLjUsODQzLjIgNDExLjAsODM4LjcgNDA4LjYsODM0LjIgQzQwNi4yLDgyOS43IDQwNC4wLDgyNS4wIDQwMi4yLDgyMC4zIEM0MDAuMyw4MTUuNiAzOTguOCw4MTAuNiAzOTcuNiw4MDUuNyBDMzk2LjMsODAwLjggMzk1LjQsNzk1LjcgMzk0LjcsNzkwLjcgQzM5My45LDc4NS42IDM5My42LDc4MC41IDM5My4wLDc3NS41IEMzOTIuNSw3NzAuNCAzOTIuMSw3NjUuMyAzOTEuNCw3NjAuMiBDMzkwLjgsNzU1LjIgMzkwLjEsNzUwLjEgMzg5LjMsNzQ1LjEgQzM4OC41LDc0MC4xIDM4Ny42LDczNS4wIDM4Ni42LDczMC4wIEMzODUuNiw3MjUuMCAzODQuNiw3MjAuMCAzODMuNSw3MTUuMCBDMzgyLjQsNzEwLjEgMzgxLjMsNzA1LjEgMzgwLjEsNzAwLjEgQzM3OC45LDY5NS4yIDM3Ny41LDY5MC4yIDM3Ni4yLDY4NS4zIEMzNzQuOSw2ODAuNCAzNzMuNiw2NzUuNSAzNzIuMiw2NzAuNSBDMzcwLjgsNjY1LjYgMzY5LjUsNjYwLjcgMzY4LjAsNjU1LjggQzM2Ni41LDY1MS4wIDM2NC45LDY0Ni4xIDM2My4yLDY0MS4zIEMzNjEuNSw2MzYuNSAzNTkuNCw2MzEuOCAzNTguMCw2MjYuOSBDMzU2LjYsNjIyLjAgMzU1LjQsNjE3LjAgMzU0LjgsNjExLjkgQzM1NC4yLDYwNi45IDM1NC4wLDYwMS43IDM1NC4yLDU5Ni43IEMzNTQuNSw1OTEuNiAzNTUuMyw1ODYuNSAzNTYuMyw1ODEuNSBDMzU3LjQsNTc2LjYgMzU4LjgsNTcxLjYgMzYwLjcsNTY2LjkgQzM2Mi43LDU2Mi4yIDM2NS4yLDU1Ny43IDM2OC4wLDU1My41IEMzNzAuOCw1NDkuMyAzNzQuMCw1NDUuMiAzNzcuNSw1NDEuNSBDMzgwLjksNTM3LjcgMzg0LjcsNTM0LjIgMzg4LjYsNTMxLjAgQzM5Mi42LDUyNy44IDM5Ni43LDUyNC43IDQwMS4xLDUyMi4yIEM0MDUuNSw1MTkuNiA0MTAuMiw1MTcuNSA0MTUuMCw1MTUuOSBDNDE5LjgsNTE0LjIgNDI0LjcsNTEzLjMgNDI5LjksNTEyLjMgQzQzNS4xLDUxMS4zIDQ0MC44LDUxMC4xIDQ0Ni4wLDUwOS43IFoiLz48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMyRjdENkQiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBkPSJNNDYzLjUsNjIxIG0tMjYsMCBhMjYsMjYgMCAwIDEgNTIsMCIvPjxwYXRoIGZpbGw9IiMyRjdENkQiIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTU5Ni41LDYxMSBtLTI1LjUsMCBhMjUuNSwyNS41IDAgMSAwIDUxLDAgYTI1LjUsMjUuNSAwIDEgMCAtNTEsMCBaIE01ODYuNSw2MDEuNSBtLTEwLjUsMCBhMTAuNSwxMC41IDAgMSAxIDIxLDAgYTEwLjUsMTAuNSAwIDEgMSAtMjEsMCBaIE02MDAuNSw2MTMuNSBtLTYsMCBhNiw2IDAgMSAxIDEyLDAgYTYsNiAwIDEgMSAtMTIsMCBaIE00OTksNjQxIEg1NjEgQzU2MSw2NjAgNTQ4LDY3MSA1MzAsNjcxIEM1MTIsNjcxIDQ5OSw2NjAgNDk5LDY0MSBaIE01MDUuNSw2NDYgSDU1NC41IEM1NTMuNSw2NTAgNTUxLjUsNjUyLjUgNTQ5LDY1My41IEg1MTEgQzUwOC41LDY1Mi41IDUwNi41LDY1MCA1MDUuNSw2NDYgWiBNNTE0LjUsNjU4LjUgSDU0NS41IEM1NDIuNSw2NjMuNSA1MzcsNjY2IDUzMCw2NjYgQzUyMyw2NjYgNTE3LjUsNjYzLjUgNTE0LjUsNjU4LjUgWiIvPjwvZz48L3N2Zz4=">
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADVUlEQVR42sWXTWxUVRTHf/fNdEgbUoYSGjpiGiG2UGiamrR0ITFGg9aPoBtCZKGRBcbAghDCDkLiwkQrCXHRqokbYyBRF0TTKXRRSSAKFqYO0+mHact8vLa0TFtCYDofPS6cqcU3r507zoSzeu+ee875n3PPOfcexQoSkQ3ACaAFaAJqKA5NAgPADeCcUmreskNE9omIKaWnqIi0Z+2qjPHXAK+uWz/+cZ17D/51psZdxTsvtOUr/oZSqtspIhuBb3WNJ1IpPv3lB5Lp1PJax8HDOiq+EZFGA3i/kLP+bWz4CeOt2+p4paFJR4UHOGAAbYVk1bWRweVvp2Fwev/BQtS0KRGZAGp5OnRXiYjwFMmpKxCIhjjU9XlO3vcfnaTB86yWPkMXwJXAbXvendvaEdAG4PXfsuV1+/tLCyAQDTG1MGfLn1qYI2iGS5cDvQEfleUVnHj9XTzuKrz+fsrLXLy0o5HxmWnOX7lE7+AAO3XyQKeJt3ecka4+r4iIPFpcFBGRRCopkdisiIh82fuzvPnFWa2LIe8jGJqMYM7HKHM4SKZTPEzECZphAtEw10aDAFSsW0dkbpahyUjxc6Dnzj/Jd2NshDKHk83rK4knE1RXbuBA64sAXB0OZCrFV3wAlzMldnN8lPTSEgDNtdvxuKsAiCcTDITGMntvFRfA0GSE6Nx9AFLpNJHM90B4fDncE7P3WMo01XBsluGpaPEA9PzHo6zRr/t6uPD7VQB8Ge91m5JTJ/xZ+uTSBcz5+1z/K4jDcFC7qZqvfvVaZI6++taaute8jAbNMO91flbQRXPx41PUb3nm/x1BIf1dR3ZNAIX0d7uj086BoBm29P5yl4vzh47k3H/suy7iycTyfyg2w8iUSd0WT2EAcnnQtq2elueez/2+2l5P35Dfcn2vBsAApnXCv7d+t62yvXW7rCXsX7UpTRuAL9/wA7y8s3EVAA2WtVBshtFp007EZwvgco6Xz46arWysWG8LoLrSnbPsVqkGnwF0ApZZrfvP/rxCnM8em1fUPNDpVEpNiMiHwE9ZzsPFOPub91hnqaaWNQG83dyKw7BW9+NEgnKXa+XSB0qpiZUPk/bM4FhqMkVk3xPD6QoQbuA40Fqi8fwm0KGUWsgy/gZ24Y9HhYCmDQAAAABJRU5ErkJggg==">
+<link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
+<style>
+/* Elrendezés: egyetlen oszlop — felül fehér logósáv, alatta orvosválasztó és tétellista,
+   alul rögzített összesítő sáv a PDF-gombokkal; asztalon 720 px-es középső hasáb. */
+:root {
+  --tinta: #1E3A4C;            /* logó „dent” és „l”, címek, végösszeg, fő gomb */
+  --kiemeles: #2F7D6D;         /* logó Á-ja, fókusz, kiválasztott állapot */
+  --kiemeles-szoveg: #276B5E;  /* kiemelő szín szövegnek halvány háttéren (4,5:1 felett) */
+  --zebra: #F2F5F4;
+  --vonal: #D5DCDA;            /* elválasztó vonalak */
+  --vonal-mezo: #87939A;       /* beviteli mezők kerete (3:1 felett) */
+  --szoveg: #22292E;
+  --masodlagos: #5C6870;       /* a PDF-ben #6B7780; a felületen sötétebb, hogy a színezett háttéren is 4,5:1 feletti legyen */
+  --papir: #FFFFFF;
+  --hatter: #F4F7F6;
+  --kiemeles-halvany: #E8F2EF;
+  --tinta-sotet: #152B39;
+  --tiltott: #A9B4B2;
+  --hiba: #A8322B;
+  --hiba-hatter: #FBEDEC;
+  --figy: #7A5200;
+  --figy-hatter: #FFF4DC;
+  --betu: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --max: 720px;
+  --gutter: 16px;
+  --sav-m: 160px;              /* az alsó sáv magassága — a JS frissíti */
+  color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--hatter);
+  scroll-padding-top: 12px; scroll-padding-bottom: calc(var(--sav-m) + 12px);
+}
+body {
+  margin: 0; min-height: 100vh; background: var(--hatter); color: var(--szoveg);
+  font: 400 16px/1.45 var(--betu); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+:focus-visible { outline: 3px solid var(--kiemeles); outline-offset: 2px; }
+[hidden] { display: none !important; }
+h1, h2, h3 { margin: 0; font-weight: 600; color: var(--tinta); text-wrap: balance; }
+p { margin: 0; }
+.ikon { width: 22px; height: 22px; flex: none; display: block; }
+.halvany { color: var(--masodlagos); }
+.szam { font-variant-numeric: tabular-nums; }
+.lathatatlan { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- fejléc ---------- */
+.fejlec { background: var(--papir); border-bottom: 1px solid var(--vonal); padding-top: env(safe-area-inset-top, 0px); }
+.fejlec-belso { max-width: var(--max); margin: 0 auto; padding: 8px var(--gutter); min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.logo { display: flex; align-items: center; min-height: 48px; flex: none; line-height: 0; border-radius: 6px; color: var(--tinta); text-decoration: none; }
+.logo svg, .logo img { display: block; height: 30px; width: auto; max-width: 60vw; }
+.logo-szoveg { font-size: 24px; font-weight: 600; line-height: 1; }
+.fejlec-gomb { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 12px; margin-right: -8px; border: 0; border-radius: 10px; background: transparent; color: var(--tinta); font-weight: 600; }
+.fejlec-gomb:active { background: var(--zebra); }
+.nezet-arak-aktiv .fejlec-belso, .nezet-arak-aktiv .tartalom { max-width: 960px; }
+
+/* ---------- tartalom ---------- */
+.tartalom { max-width: var(--max); margin: 0 auto; padding: 16px var(--gutter) calc(var(--sav-m) + 32px); display: grid; gap: 22px; }
+.nezet-arak-aktiv .tartalom { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+.blokk { display: grid; gap: 10px; min-width: 0; }
+.blokk-fej { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.blokk-cim { font-size: 15px; font-weight: 600; color: var(--masodlagos); letter-spacing: .01em; }
+.blokk.hibas .szegmens, .blokk.hibas .orvos-select { border-color: var(--hiba); box-shadow: 0 0 0 3px var(--hiba-hatter); }
+.blokk.hibas :focus-visible { outline-color: var(--hiba); }
+.mezo-hiba { color: var(--hiba); font-size: 15px; display: flex; gap: 6px; align-items: flex-start; }
+.mezo-hiba .ikon { width: 18px; height: 18px; margin-top: 2px; }
+.tipp { color: var(--masodlagos); font-size: 15px; }
+.figy-doboz { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--figy-hatter); color: var(--figy); font-size: 15px; line-height: 1.35; }
+.figy-doboz .ikon { width: 20px; height: 20px; margin-top: 1px; }
+.figy-doboz .gomb-link { color: var(--figy); min-height: 44px; padding: 0; }
+
+/* ---------- orvosválasztó ---------- */
+.szegmens { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--papir); border: 1px solid var(--vonal-mezo); border-radius: 14px; }
+.szegmens button { min-height: 48px; border: 0; border-radius: 10px; background: transparent; color: var(--tinta); font-weight: 600; padding: 6px 8px; line-height: 1.2; overflow-wrap: anywhere; touch-action: manipulation; }
+.szegmens button[aria-checked="true"] { background: var(--tinta); color: #fff; box-shadow: 0 1px 2px rgba(30, 58, 76, .3); }
+@media (max-width: 419px) { .szegmens[data-n="4"] { --n: 2 !important; } }
+.select-keret { position: relative; }
+.orvos-select { width: 100%; min-height: 52px; padding: 0 48px 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 14px; background: var(--papir); color: var(--tinta); font-size: 17px; font-weight: 600; appearance: none; -webkit-appearance: none; }
+.orvos-select:invalid { color: var(--masodlagos); font-weight: 400; }
+.select-keret .ikon { position: absolute; right: 14px; top: 50%; transform: translateY(-50%) rotate(-90deg); pointer-events: none; color: var(--tinta); }
+
+/* ---------- kereső ---------- */
+.kereso { position: sticky; top: 0; z-index: 5; background: var(--hatter); padding: 6px 0; margin: -6px 0; }
+.kereso .ikon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--masodlagos); pointer-events: none; }
+.kereso input { width: 100%; min-height: 48px; padding: 0 48px 0 46px; border: 1px solid var(--vonal-mezo); border-radius: 14px; background: var(--papir); font-size: 16px; appearance: none; -webkit-appearance: none; }
+.kereso input::-webkit-search-cancel-button { display: none; }
+.kereso input:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
+.kereso-torles { position: absolute; right: 0; top: 6px; width: 48px; height: 48px; border: 0; background: transparent; color: var(--masodlagos); display: grid; place-items: center; border-radius: 14px; }
+.kereso-torles .ikon { position: static; transform: none; }
+
+/* ---------- tétellista ---------- */
+.tetel-lista { list-style: none; margin: 0; padding: 0; background: var(--papir); border: 1px solid var(--vonal); border-radius: 14px; overflow: hidden; }
+.tetel { display: flex; align-items: flex-start; gap: 12px; padding: 10px 10px 10px 14px; min-height: 70px; border-top: 1px solid var(--vonal); transition: background-color .15s; }
+.tetel.elso { border-top: 0; }
+.tetel.valasztott { background: var(--kiemeles-halvany); }
+.tetel-szoveg { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.tetel-nev { overflow-wrap: anywhere; line-height: 1.3; }
+.tetel-ar { font-size: 14px; color: var(--masodlagos); font-variant-numeric: tabular-nums; }
+.tetel-ar.nincs { color: var(--figy); }
+.tetel.arhiany .tetel-ar.nincs { font-weight: 600; }
+.tetel-sor-ossz { font-size: 14px; font-weight: 600; color: var(--tinta); font-variant-numeric: tabular-nums; }
+.lepteto { flex: none; display: flex; align-items: stretch; border: 1px solid var(--vonal-mezo); border-radius: 12px; background: var(--papir); overflow: hidden; }
+.lep { width: 48px; height: 48px; border: 0; background: transparent; color: var(--tinta); display: grid; place-items: center; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.lep:active:not(:disabled) { background: var(--zebra); }
+.lep:disabled { color: var(--tiltott); }
+.menny { width: 52px; height: 48px; padding: 0; border: 0; border-left: 1px solid var(--vonal); border-right: 1px solid var(--vonal); border-radius: 0; background: transparent; color: var(--tinta); text-align: center; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; appearance: none; -webkit-appearance: none; }
+.menny:focus { outline: none; background: var(--kiemeles-halvany); box-shadow: inset 0 0 0 2px var(--kiemeles); }
+.menny:disabled { color: var(--tiltott); -webkit-text-fill-color: var(--tiltott); opacity: 1; }
+.tetel.nulla .menny { color: var(--masodlagos); font-weight: 400; }
+.ures { background: var(--papir); border: 1px dashed var(--vonal-mezo); border-radius: 14px; padding: 20px 16px; text-align: center; display: grid; gap: 10px; justify-items: center; color: var(--masodlagos); }
+
+/* ---------- gombok ---------- */
+.gomb { min-height: 52px; padding: 0 16px; border: 1.5px solid transparent; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; line-height: 1.2; text-align: center; touch-action: manipulation; text-decoration: none; }
+.gomb-fo { background: var(--tinta); color: #fff; }
+.gomb-fo:active { background: var(--tinta-sotet); }
+.gomb-masod { background: var(--papir); color: var(--tinta); border-color: var(--tinta); }
+.gomb-masod:active { background: var(--zebra); }
+.gomb-veszely { background: var(--hiba); color: #fff; }
+.gomb-szoveg { background: transparent; color: var(--tinta); min-height: 48px; padding: 0 10px; }
+.gomb-szoveg:active { background: var(--zebra); }
+.gomb[aria-busy="true"] { opacity: .8; }
+.gomb:disabled:not([aria-busy="true"]) { opacity: .5; }
+@media (hover: hover) {
+  .gomb-fo:hover { background: var(--tinta-sotet); }
+  .gomb-masod:hover, .gomb-szoveg:hover, .szegmens button:not([aria-checked="true"]):hover { background: var(--zebra); }
+  .fej-gomb:hover span, .sor-gomb:hover span { text-decoration: underline; text-underline-offset: 3px; }
+}
+.gombsor { display: flex; flex-wrap: wrap; gap: 10px; }
+.gombsor .gomb { flex: 1 1 160px; }
+.gomb-link { min-height: 48px; padding: 0 6px; border: 0; background: transparent; color: var(--tinta); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--vonal-mezo); }
+.gomb-link.veszely { color: var(--hiba); text-decoration-color: currentColor; }
+.porgo { width: 20px; height: 20px; border: 2.5px solid rgba(255, 255, 255, .35); border-top-color: #fff; border-radius: 50%; animation: forog .8s linear infinite; flex: none; }
+.gomb-masod .porgo, .dlg .porgo, .gomb-szoveg .porgo { border-color: var(--vonal); border-top-color: var(--tinta); }
+@keyframes forog { to { transform: rotate(360deg); } }
+@media (max-width: 419px) {
+  .sav-gombok .gomb, .dlg-lab .gomb { padding: 0 10px; gap: 6px; }
+  .sav-gombok .gomb .ikon, .dlg-lab .gomb .ikon { width: 20px; height: 20px; }
+}
+
+/* ---------- alsó sáv ---------- */
+.sav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--papir); border-top: 1px solid var(--vonal); box-shadow: 0 -6px 24px rgba(30, 58, 76, .08); padding: 10px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px)); }
+.sav-belso { max-width: calc(var(--max) - 2 * var(--gutter)); margin: 0 auto; display: grid; gap: 10px; }
+.sav-resz { display: grid; gap: 10px; min-width: 0; }
+.sav-uzenet { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 15px; line-height: 1.35; background: var(--hiba-hatter); color: var(--hiba); }
+.sav-uzenet.figy { background: var(--figy-hatter); color: var(--figy); }
+.sav-uzenet .ikon { width: 20px; height: 20px; margin-top: 1px; }
+.sav-osszeg { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+.osszeg { min-width: 0; font-variant-numeric: tabular-nums; color: var(--masodlagos); font-size: 16px; line-height: 1.25; }
+.osszeg strong { color: var(--tinta); font-size: 21px; font-weight: 600; white-space: nowrap; }
+.sav-gombok { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sav-gombok.egy { grid-template-columns: 1fr; }
+.sav-gombok .gomb { min-width: 0; }
+.kesz-fej { display: flex; gap: 10px; align-items: flex-start; }
+.kesz-fej .pipa { width: 28px; height: 28px; border-radius: 50%; background: var(--kiemeles); color: #fff; display: grid; place-items: center; flex: none; margin-top: 1px; }
+.kesz-fej .pipa .ikon { width: 18px; height: 18px; }
+.kesz-fej strong { display: block; color: var(--tinta); font-weight: 600; }
+.kesz-fej span { display: block; font-size: 14px; color: var(--masodlagos); overflow-wrap: anywhere; }
+.kesz-lab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 4px; margin: -4px -6px -6px; }
+.kesz-lab .gomb-link { font-size: 15px; }
+@media (min-width: 640px) { .kesz-lab { justify-content: flex-start; gap: 0 18px; } }
+
+/* ---------- értesítés ---------- */
+.uzenetek { position: fixed; left: 0; right: 0; bottom: calc(var(--sav-m) + 12px); z-index: 40; display: grid; justify-items: center; gap: 8px; padding: 0 var(--gutter); pointer-events: none; }
+.nezet-arak-aktiv .uzenetek { bottom: auto; top: calc(72px + env(safe-area-inset-top, 0px)); }
+.uzenet { pointer-events: auto; width: 100%; max-width: 560px; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px; border-radius: 12px; background: var(--tinta); color: #fff; box-shadow: 0 8px 28px rgba(21, 43, 57, .28); font-size: 15px; line-height: 1.35; animation: be .18s ease-out; }
+.uzenet.hiba { background: var(--hiba); }
+.uzenet p { flex: 1; min-width: 0; padding: 6px 0; }
+.uzenet button { flex: none; min-height: 48px; min-width: 48px; padding: 0 12px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .14); color: #fff; font-weight: 600; display: grid; place-items: center; }
+@keyframes be { from { transform: translateY(8px); opacity: 0; } }
+
+/* ---------- párbeszédablak ---------- */
+.dlg { border: 0; padding: 0; width: 100%; max-width: 100%; max-height: 92vh; max-height: 92dvh; margin: auto auto 0; border-radius: 20px 20px 0 0; background: var(--papir); color: var(--szoveg); box-shadow: 0 -12px 40px rgba(21, 43, 57, .25); }
+.dlg[open] { display: flex; flex-direction: column; }
+.dlg::backdrop { background: rgba(21, 43, 57, .32); }
+.dlg.nyitott-tartalek { position: fixed; inset: auto 0 0 0; z-index: 50; }
+@media (min-width: 640px) { .dlg { margin: auto; max-width: 560px; border-radius: 20px; } .dlg.szeles { max-width: 720px; } }
+.dlg-fej { padding: 20px 20px 6px; display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: start; }
+.dlg-fej h2 { font-size: 20px; outline: none; }
+.dlg-fej p { color: var(--masodlagos); font-size: 15px; grid-column: 1 / -1; }
+.dlg-zar { width: 48px; height: 48px; margin: -10px -12px 0 0; border: 0; border-radius: 12px; background: transparent; color: var(--masodlagos); display: grid; place-items: center; }
+.dlg-tartalom { padding: 10px 20px; overflow: auto; display: grid; gap: 14px; min-height: 0; flex: 1 1 auto; }
+.dlg-lab { padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--zebra); }
+.dlg-lab .gomb { flex: 1 1 140px; }
+.mezo { display: grid; gap: 6px; }
+.mezo label { font-weight: 600; color: var(--tinta); font-size: 15px; }
+.mezo input { min-height: 52px; padding: 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 12px; font-size: 17px; background: var(--papir); }
+.mezo input:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
+.mezo .mezo-hiba { font-size: 14px; }
+.mozgato { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.mozgato .gomb { min-height: 48px; padding: 0 14px; flex: 1 1 120px; }
+.mozgato .halvany { flex: 1 1 100%; font-size: 14px; }
+.elonezet-keret { background: var(--zebra); border-radius: 12px; padding: 10px; display: grid; place-items: center; min-height: 260px; }
+.elonezet-keret canvas { display: block; width: auto; max-width: 100%; height: auto; max-height: calc(92dvh - 260px); background: #fff; box-shadow: 0 2px 12px rgba(21, 43, 57, .18); border-radius: 2px; }
+@media (max-width: 639px) { .elonezet-keret canvas { width: 100%; max-height: none; } }
+.elonezet-allapot { display: flex; gap: 10px; align-items: center; color: var(--masodlagos); }
+.lista-valtozas { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; border: 1px solid var(--vonal); border-radius: 12px; overflow: hidden; }
+.lista-valtozas li { padding: 10px 12px; border-top: 1px solid var(--vonal); font-size: 15px; display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.lista-valtozas li:first-child { border-top: 0; }
+.lista-valtozas li:nth-child(even) { background: var(--zebra); }
+.lista-valtozas .regi { color: var(--masodlagos); text-decoration: line-through; }
+.lista-valtozas .uj { color: var(--tinta); font-weight: 600; }
+.cimkek { display: flex; flex-wrap: wrap; gap: 8px; }
+.cimke { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px; border-radius: 999px; background: var(--zebra); color: var(--tinta); font-size: 15px; font-weight: 600; }
+.cimke.uj { background: var(--kiemeles-halvany); color: var(--kiemeles-szoveg); }
+.cimke.torol { background: var(--hiba-hatter); color: var(--hiba); }
+.cimke.valt { background: var(--figy-hatter); color: var(--figy); }
+.figyelmeztetes { background: var(--figy-hatter); color: var(--figy); border-radius: 12px; padding: 10px 12px; font-size: 15px; display: grid; gap: 4px; }
+.hibadoboz { background: var(--hiba-hatter); color: var(--hiba); border-radius: 12px; padding: 10px 12px; font-size: 15px; display: grid; gap: 4px; }
+.alcim { font-size: 15px; font-weight: 600; color: var(--tinta); }
+
+/* ---------- Árak nézet ---------- */
+.arak-bevezeto { display: grid; gap: 6px; }
+.arak-bevezeto h1 { font-size: 26px; }
+.tabla-keret { overflow: auto; max-height: 70vh; max-height: 70dvh; background: var(--papir); border: 1px solid var(--vonal); border-radius: 14px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.ar-tabla { border-collapse: separate; border-spacing: 0; min-width: 100%; }
+.ar-tabla th, .ar-tabla td { padding: 0; border-bottom: 1px solid var(--vonal); background: var(--papir); vertical-align: middle; }
+.ar-tabla td { text-align: right; }
+.ar-tabla tbody tr:nth-child(even) > * { background: var(--zebra); }
+.ar-tabla tbody tr:last-child > * { border-bottom: 0; }
+.ar-tabla thead th { position: sticky; top: 0; z-index: 2; background: var(--papir); border-bottom: 1.5px solid var(--kiemeles); }
+.ar-tabla th[scope="row"], .ar-tabla .sarok { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--vonal); text-align: left; }
+.ar-tabla thead .sarok { z-index: 3; }
+.sarok span { display: block; padding: 0 12px; font-size: 14px; font-weight: 600; color: var(--masodlagos); }
+.fej-gomb, .sor-gomb { min-height: 48px; width: 100%; border: 0; background: transparent; color: var(--tinta); font-weight: 600; display: flex; align-items: center; gap: 6px; line-height: 1.25; }
+.fej-gomb { justify-content: flex-end; padding: 6px 12px; text-align: right; min-width: 116px; }
+.fej-gomb span { text-wrap: balance; }
+.sor-gomb { width: 156px; max-width: 42vw; padding: 6px 12px; text-align: left; font-weight: 400; color: var(--szoveg); overflow-wrap: anywhere; justify-content: space-between; }
+.fej-gomb .ikon, .sor-gomb .ikon { width: 16px; height: 16px; color: var(--masodlagos); }
+.ar-mezo { width: 100%; min-width: 116px; min-height: 48px; padding: 0 12px; border: 0; background: transparent; text-align: right; font-size: 16px; font-variant-numeric: tabular-nums; border-radius: 0; appearance: none; -webkit-appearance: none; }
+.ar-mezo:focus { outline: none; background: var(--kiemeles-halvany); box-shadow: inset 0 0 0 2px var(--kiemeles); }
+.ar-mezo::placeholder { color: var(--tiltott); }
+.lap { background: var(--papir); border: 1px solid var(--vonal); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+.lap p { color: var(--masodlagos); font-size: 15px; }
+.lap h2 { font-size: 17px; }
+.kapcsolo { display: flex; align-items: center; gap: 12px; min-height: 52px; cursor: pointer; }
+.kapcsolo input { width: 24px; height: 24px; accent-color: var(--kiemeles); flex: none; margin: 0; }
+.kapcsolo span { color: var(--szoveg); }
+.allapot-sor { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; }
+.allapot-sor .ikon { width: 20px; height: 20px; margin-top: 1px; }
+.allapot-sor.jo { color: var(--kiemeles-szoveg); }
+.allapot-sor.var { color: var(--figy); }
+.mentve { font-size: 14px; color: var(--masodlagos); min-height: 20px; }
+.lab { color: var(--masodlagos); font-size: 13px; text-align: center; padding-top: 4px; }
+
+@media (min-width: 720px) { .tetel { padding-left: 18px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
+</style>
+</head>
+<body>
+<noscript><p style="padding:16px">Az árlista-generáló JavaScript nélkül nem működik. Engedélyezd a JavaScriptet a böngészőben.</p></noscript>
+
+<header class="fejlec">
+  <div class="fejlec-belso">
+    <a class="logo" id="logo" href="#" aria-label="dentÁl – az árlista eleje"></a>
+    <button type="button" class="fejlec-gomb" id="nezetGomb"></button>
+  </div>
+</header>
+
+<main class="tartalom" id="nezetArlista">
+  <h1 class="lathatatlan">dentÁl árlista</h1>
+  <div class="figy-doboz" id="beepitettFigy" hidden></div>
+  <section class="blokk" id="orvosBlokk" aria-labelledby="orvosCim">
+    <h2 class="blokk-cim" id="orvosCim">Orvos</h2>
+    <div id="orvosValaszto"></div>
+    <p class="mezo-hiba" id="orvosHiba" hidden></p>
+    <p class="tipp" id="orvosTipp" hidden>Válassz orvost: utána látod az egységárakat.</p>
+  </section>
+
+  <section class="blokk" aria-labelledby="tetelCim">
+    <div class="blokk-fej">
+      <h2 class="blokk-cim" id="tetelCim">Tételek</h2>
+      <span class="halvany szam" id="tetelDarab" aria-live="polite"></span>
+    </div>
+    <div class="kereso" id="keresoSor" hidden>
+      <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input type="search" id="kereso" placeholder="Tétel keresése" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Tétel keresése">
+      <button type="button" class="kereso-torles" id="keresoTorles" aria-label="Keresés törlése" hidden>
+        <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <ul class="tetel-lista" id="tetelLista" aria-label="Tételek mennyisége"></ul>
+    <div class="ures" id="nincsTalalat" hidden>
+      <p id="nincsTalalatSzoveg">Nincs a keresésnek megfelelő tétel.</p>
+      <button type="button" class="gomb gomb-masod" id="keresesTorlesGomb">Keresés törlése</button>
+    </div>
+    <div class="ures" id="nincsTetel" hidden>
+      <p>Még nincs egy tétel sem. Vegyél fel tételeket és árakat az Árak lapon, vagy töltsd be őket Excelből.</p>
+      <a class="gomb gomb-masod" href="#arak">Árak megnyitása</a>
+    </div>
+  </section>
+</main>
+
+<main class="tartalom" id="nezetArak" hidden>
+  <div class="arak-bevezeto">
+    <h1>Árak</h1>
+    <p class="halvany">Egységárak forintban, orvosonként. A változások azonnal mentődnek ezen az eszközön. Üres mező: az orvosnak nincs ára erre a tételre.</p>
+  </div>
+
+  <section class="blokk" aria-label="Ártáblázat">
+    <div class="tabla-keret" id="tablaKeret"><table class="ar-tabla" id="arTabla"></table></div>
+    <div class="gombsor">
+      <button type="button" class="gomb gomb-masod" id="ujTetelGomb"></button>
+      <button type="button" class="gomb gomb-masod" id="ujOrvosGomb"></button>
+    </div>
+    <p class="mentve" id="mentveJelzo" aria-live="polite"></p>
+  </section>
+
+  <section class="lap" aria-labelledby="excelCim">
+    <h2 id="excelCim">Frissítés Excelből</h2>
+    <p>Az „Adatbázis” lap 1. sorában (B1-től jobbra) legyenek az orvosok, az A oszlopban (A2-től lefelé) a tételek, a metszéspontokban az egységárak. Mentés előtt látod, mi változik.</p>
+    <div class="gombsor">
+      <button type="button" class="gomb gomb-fo" id="excelGomb">Excel-fájl kiválasztása</button>
+    </div>
+    <input type="file" id="excelFajl" class="lathatatlan" tabindex="-1" aria-hidden="true" accept=".xlsx,.xlsm,.xls,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet">
+  </section>
+
+  <section class="lap" aria-labelledby="mentesCim">
+    <h2 id="mentesCim">Biztonsági mentés</h2>
+    <p>Az árak csak ezen az eszközön, ebben a böngészőben vannak. Időnként mentsd el őket fájlba; a mentésből bármikor, akár másik telefonon is visszatölthetők.</p>
+    <div class="gombsor">
+      <button type="button" class="gomb gomb-masod" id="jsonMentesGomb">Mentés fájlba</button>
+      <button type="button" class="gomb gomb-masod" id="jsonBetoltesGomb">Visszatöltés fájlból</button>
+    </div>
+    <input type="file" id="jsonFajl" class="lathatatlan" tabindex="-1" aria-hidden="true" accept=".json,application/json,.txt,text/plain">
+    <button type="button" class="gomb-link" id="importVisszaGomb" hidden>Visszaállítás az utolsó betöltés előtti árakra</button>
+  </section>
+
+  <section class="lap" aria-labelledby="beallCim">
+    <h2 id="beallCim">Beállítások</h2>
+    <label class="kapcsolo"><input type="checkbox" id="beallNullazas"><span>Mennyiségek nullázása a PDF elkészítése után</span></label>
+    <label class="kapcsolo"><input type="checkbox" id="beallMono"><span>Egyszínű logó a PDF-ben (fekete-fehér nyomtatáshoz)</span></label>
+  </section>
+
+  <section class="lap" aria-labelledby="offlineCim">
+    <h2 id="offlineCim">Offline használat</h2>
+    <div id="offlineAllapot" class="allapot-sor var"></div>
+    <p id="iosTipp" hidden>iPhone-on tedd ki az oldalt a kezdőképernyőre (Megosztás → Főképernyőhöz adás), és onnan használd. A Safari és a kezdőképernyős alkalmazás külön tárolja az árakat, ezért az Excel-importot már az alkalmazásban végezd el.</p>
+  </section>
+
+  <p class="lab" id="verzio"></p>
+</main>
+
+<div class="sav" id="sav" role="region" aria-label="Összesítés és PDF">
+  <div class="sav-belso">
+    <div class="sav-uzenet" id="savUzenet" role="status" aria-live="polite" hidden></div>
+    <div id="savNormal" class="sav-resz">
+      <div class="sav-osszeg">
+        <p class="osszeg" id="osszeg" aria-live="polite">Még nincs kiválasztott tétel</p>
+        <button type="button" class="gomb gomb-szoveg" id="elonezetGomb"></button>
+      </div>
+      <div class="sav-gombok" id="savGombok">
+        <button type="button" class="gomb gomb-fo" id="letoltGomb"></button>
+        <button type="button" class="gomb gomb-masod" id="megosztGomb" hidden></button>
+      </div>
+    </div>
+    <div id="savKesz" class="sav-resz" hidden>
+      <div class="kesz-fej" aria-live="polite">
+        <span class="pipa"></span>
+        <div><strong id="keszCim"></strong><span id="keszFajl"></span></div>
+      </div>
+      <div class="sav-gombok" id="keszGombok">
+        <button type="button" class="gomb gomb-fo" id="keszMegosztGomb"></button>
+        <button type="button" class="gomb gomb-masod" id="keszLetoltGomb"></button>
+      </div>
+      <div class="kesz-lab">
+        <button type="button" class="gomb-link" id="keszMegnyitGomb">Megnyitás</button>
+        <button type="button" class="gomb-link" id="keszVisszaGomb" hidden>Mennyiségek vissza</button>
+        <button type="button" class="gomb-link" id="keszUjGomb">Új árlista</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="uzenetek" id="uzenetek" aria-live="polite"></div>
+<dialog class="dlg" id="dlg" aria-labelledby="dlgCim"></dialog>
+
+<!-- Beágyazott logók. A rajzhoz ne nyúlj; csere esetén a teljes svg-elemet cseréld. -->
+<template id="logo-szines"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -925.9 3457.1 965.9"><path fill="#1E3A4C" d="M274 -566Q329 -566 374.5 -543.0Q420 -520 446 -481V-740H617V0H446V-80Q422 -40 377.5 -16.0Q333 8 274 8Q205 8 149.0 -27.5Q93 -63 60.5 -128.5Q28 -194 28 -280Q28 -366 60.5 -431.0Q93 -496 149.0 -531.0Q205 -566 274 -566ZM324 -417Q273 -417 237.5 -380.5Q202 -344 202 -280Q202 -216 237.5 -178.5Q273 -141 324 -141Q375 -141 410.5 -178.0Q446 -215 446 -279Q446 -343 410.5 -380.0Q375 -417 324 -417Z"/><path fill="#1E3A4C" d="M1264 -238H877Q881 -186 910.5 -158.5Q940 -131 983 -131Q1047 -131 1072 -185H1254Q1240 -130 1203.5 -86.0Q1167 -42 1112.0 -17.0Q1057 8 989 8Q907 8 843.0 -27.0Q779 -62 743.0 -127.0Q707 -192 707 -279Q707 -366 742.5 -431.0Q778 -496 842.0 -531.0Q906 -566 989 -566Q1070 -566 1133.0 -532.0Q1196 -498 1231.5 -435.0Q1267 -372 1267 -288Q1267 -264 1264 -238ZM1092 -333Q1092 -377 1062.0 -403.0Q1032 -429 987 -429Q944 -429 914.5 -404.0Q885 -379 878 -333Z"/><path fill="#1E3A4C" d="M1912 -326V0H1742V-303Q1742 -359 1713.0 -390.0Q1684 -421 1635 -421Q1586 -421 1557.0 -390.0Q1528 -359 1528 -303V0H1357V-558H1528V-484Q1554 -521 1598.0 -542.5Q1642 -564 1697 -564Q1795 -564 1853.5 -500.5Q1912 -437 1912 -326Z"/><path fill="#1E3A4C" d="M2342 -145V0H2255Q2162 0 2110.0 -45.5Q2058 -91 2058 -194V-416H1990V-558H2058V-694H2229V-558H2341V-416H2229V-192Q2229 -167 2241.0 -156.0Q2253 -145 2281 -145Z"/><g transform="translate(2370.23,-902.29) scale(0.65765)"><path fill="#2F7D6D" fill-rule="evenodd" d="M383,300 L687,300 L1044.5,1371 L774,1371 L682.5,1066 L387.5,1066 L296,1371 L25.5,1371 Z M449.0,199.0 L627.0,199.0 L731.0,26.0 L499.0,26.0 Z M446.0,509.7 C451.2,509.2 456.2,509.1 461.3,509.6 C466.3,510.2 471.3,511.7 476.1,513.2 C481.0,514.7 485.7,516.8 490.3,518.9 C494.9,521.1 499.2,524.0 503.8,526.1 C508.5,528.1 513.4,529.8 518.3,531.1 C523.2,532.3 528.4,533.2 533.4,533.4 C538.5,533.6 543.6,533.1 548.6,532.1 C553.6,531.0 558.4,529.2 563.1,527.4 C567.9,525.5 572.4,523.0 577.1,521.0 C581.8,519.0 586.5,516.9 591.3,515.5 C596.2,514.0 601.2,512.8 606.2,512.1 C611.3,511.3 616.4,511.0 621.5,511.0 C626.6,511.0 631.7,511.2 636.7,512.0 C641.8,512.8 646.8,514.1 651.6,515.6 C656.4,517.2 661.2,519.1 665.7,521.5 C670.2,523.8 674.6,526.6 678.6,529.7 C682.7,532.7 686.6,536.1 690.1,539.8 C693.7,543.4 697.0,547.4 699.9,551.5 C702.8,555.7 705.4,560.2 707.5,564.8 C709.6,569.4 711.3,574.3 712.5,579.2 C713.7,584.2 714.5,589.3 714.9,594.3 C715.3,599.4 715.4,604.6 715.1,609.6 C714.8,614.7 714.1,619.8 713.0,624.8 C711.8,629.7 709.8,634.5 708.1,639.3 C706.5,644.1 704.6,648.8 702.8,653.6 C701.1,658.4 699.4,663.2 697.8,668.1 C696.3,673.0 694.8,677.8 693.4,682.7 C692.1,687.7 690.9,692.6 689.6,697.6 C688.4,702.5 687.2,707.5 686.1,712.5 C684.9,717.4 683.8,722.4 682.8,727.4 C681.8,732.4 680.9,737.4 680.0,742.5 C679.0,747.5 678.1,752.5 677.2,757.5 C676.4,762.5 675.4,767.6 674.7,772.6 C674.0,777.7 673.7,782.8 672.9,787.8 C672.1,792.8 671.0,797.9 669.8,802.8 C668.6,807.8 667.4,812.7 665.7,817.5 C664.0,822.3 661.9,827.0 659.7,831.6 C657.4,836.2 655.0,840.7 652.2,845.0 C649.4,849.2 646.1,853.2 642.8,857.0 C639.5,860.9 636.1,864.8 632.3,868.2 C628.5,871.6 624.6,875.2 620.2,877.4 C615.7,879.7 610.5,881.7 605.7,881.7 C600.9,881.6 595.1,880.0 591.4,877.2 C587.6,874.3 585.4,868.9 583.2,864.4 C580.9,859.9 579.7,854.8 578.0,850.0 C576.2,845.3 574.5,840.5 572.7,835.7 C571.0,830.9 569.1,826.2 567.4,821.4 C565.8,816.6 564.5,811.6 562.7,806.8 C560.9,802.1 558.8,797.4 556.5,792.9 C554.1,788.4 552.1,783.2 548.6,779.8 C545.0,776.5 539.9,773.2 535.4,772.7 C530.8,772.3 525.0,774.2 521.2,777.0 C517.4,779.8 515.0,785.1 512.4,789.4 C509.9,793.8 507.9,798.6 505.9,803.3 C503.8,808.0 502.0,812.7 500.2,817.5 C498.3,822.2 496.5,827.0 494.7,831.8 C493.0,836.6 491.3,841.4 489.6,846.2 C487.9,851.0 486.5,856.0 484.4,860.6 C482.3,865.2 480.5,870.6 477.1,874.0 C473.8,877.5 468.8,880.6 464.1,881.4 C459.5,882.2 453.9,880.6 449.3,878.8 C444.7,876.9 440.6,873.4 436.7,870.2 C432.8,866.9 429.2,863.2 425.8,859.4 C422.5,855.6 419.2,851.6 416.4,847.4 C413.5,843.2 411.0,838.7 408.6,834.2 C406.2,829.7 404.0,825.0 402.2,820.3 C400.3,815.6 398.8,810.6 397.6,805.7 C396.3,800.8 395.4,795.7 394.7,790.7 C393.9,785.6 393.6,780.5 393.0,775.5 C392.5,770.4 392.1,765.3 391.4,760.2 C390.8,755.2 390.1,750.1 389.3,745.1 C388.5,740.1 387.6,735.0 386.6,730.0 C385.6,725.0 384.6,720.0 383.5,715.0 C382.4,710.1 381.3,705.1 380.1,700.1 C378.9,695.2 377.5,690.2 376.2,685.3 C374.9,680.4 373.6,675.5 372.2,670.5 C370.8,665.6 369.5,660.7 368.0,655.8 C366.5,651.0 364.9,646.1 363.2,641.3 C361.5,636.5 359.4,631.8 358.0,626.9 C356.6,622.0 355.4,617.0 354.8,611.9 C354.2,606.9 354.0,601.7 354.2,596.7 C354.5,591.6 355.3,586.5 356.3,581.5 C357.4,576.6 358.8,571.6 360.7,566.9 C362.7,562.2 365.2,557.7 368.0,553.5 C370.8,549.3 374.0,545.2 377.5,541.5 C380.9,537.7 384.7,534.2 388.6,531.0 C392.6,527.8 396.7,524.7 401.1,522.2 C405.5,519.6 410.2,517.5 415.0,515.9 C419.8,514.2 424.7,513.3 429.9,512.3 C435.1,511.3 440.8,510.1 446.0,509.7 Z"/><path fill="none" stroke="#2F7D6D" stroke-width="5" stroke-linecap="round" d="M463.5,621 m-26,0 a26,26 0 0 1 52,0"/><path fill="#2F7D6D" fill-rule="evenodd" d="M596.5,611 m-25.5,0 a25.5,25.5 0 1 0 51,0 a25.5,25.5 0 1 0 -51,0 Z M586.5,601.5 m-10.5,0 a10.5,10.5 0 1 1 21,0 a10.5,10.5 0 1 1 -21,0 Z M600.5,613.5 m-6,0 a6,6 0 1 1 12,0 a6,6 0 1 1 -12,0 Z M499,641 H561 C561,660 548,671 530,671 C512,671 499,660 499,641 Z M505.5,646 H554.5 C553.5,650 551.5,652.5 549,653.5 H511 C508.5,652.5 506.5,650 505.5,646 Z M514.5,658.5 H545.5 C542.5,663.5 537,666 530,666 C523,666 517.5,663.5 514.5,658.5 Z"/></g><path fill="#1E3A4C" d="M3315.144589552239 -740V0H3144.144589552239V-740Z"/></svg></template>
+<template id="logo-mono"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -925.9 3457.1 965.9"><path fill="#1E3A4C" d="M274 -566Q329 -566 374.5 -543.0Q420 -520 446 -481V-740H617V0H446V-80Q422 -40 377.5 -16.0Q333 8 274 8Q205 8 149.0 -27.5Q93 -63 60.5 -128.5Q28 -194 28 -280Q28 -366 60.5 -431.0Q93 -496 149.0 -531.0Q205 -566 274 -566ZM324 -417Q273 -417 237.5 -380.5Q202 -344 202 -280Q202 -216 237.5 -178.5Q273 -141 324 -141Q375 -141 410.5 -178.0Q446 -215 446 -279Q446 -343 410.5 -380.0Q375 -417 324 -417Z"/><path fill="#1E3A4C" d="M1264 -238H877Q881 -186 910.5 -158.5Q940 -131 983 -131Q1047 -131 1072 -185H1254Q1240 -130 1203.5 -86.0Q1167 -42 1112.0 -17.0Q1057 8 989 8Q907 8 843.0 -27.0Q779 -62 743.0 -127.0Q707 -192 707 -279Q707 -366 742.5 -431.0Q778 -496 842.0 -531.0Q906 -566 989 -566Q1070 -566 1133.0 -532.0Q1196 -498 1231.5 -435.0Q1267 -372 1267 -288Q1267 -264 1264 -238ZM1092 -333Q1092 -377 1062.0 -403.0Q1032 -429 987 -429Q944 -429 914.5 -404.0Q885 -379 878 -333Z"/><path fill="#1E3A4C" d="M1912 -326V0H1742V-303Q1742 -359 1713.0 -390.0Q1684 -421 1635 -421Q1586 -421 1557.0 -390.0Q1528 -359 1528 -303V0H1357V-558H1528V-484Q1554 -521 1598.0 -542.5Q1642 -564 1697 -564Q1795 -564 1853.5 -500.5Q1912 -437 1912 -326Z"/><path fill="#1E3A4C" d="M2342 -145V0H2255Q2162 0 2110.0 -45.5Q2058 -91 2058 -194V-416H1990V-558H2058V-694H2229V-558H2341V-416H2229V-192Q2229 -167 2241.0 -156.0Q2253 -145 2281 -145Z"/><g transform="translate(2370.23,-902.29) scale(0.65765)"><path fill="#1E3A4C" fill-rule="evenodd" d="M383,300 L687,300 L1044.5,1371 L774,1371 L682.5,1066 L387.5,1066 L296,1371 L25.5,1371 Z M449.0,199.0 L627.0,199.0 L731.0,26.0 L499.0,26.0 Z M446.0,509.7 C451.2,509.2 456.2,509.1 461.3,509.6 C466.3,510.2 471.3,511.7 476.1,513.2 C481.0,514.7 485.7,516.8 490.3,518.9 C494.9,521.1 499.2,524.0 503.8,526.1 C508.5,528.1 513.4,529.8 518.3,531.1 C523.2,532.3 528.4,533.2 533.4,533.4 C538.5,533.6 543.6,533.1 548.6,532.1 C553.6,531.0 558.4,529.2 563.1,527.4 C567.9,525.5 572.4,523.0 577.1,521.0 C581.8,519.0 586.5,516.9 591.3,515.5 C596.2,514.0 601.2,512.8 606.2,512.1 C611.3,511.3 616.4,511.0 621.5,511.0 C626.6,511.0 631.7,511.2 636.7,512.0 C641.8,512.8 646.8,514.1 651.6,515.6 C656.4,517.2 661.2,519.1 665.7,521.5 C670.2,523.8 674.6,526.6 678.6,529.7 C682.7,532.7 686.6,536.1 690.1,539.8 C693.7,543.4 697.0,547.4 699.9,551.5 C702.8,555.7 705.4,560.2 707.5,564.8 C709.6,569.4 711.3,574.3 712.5,579.2 C713.7,584.2 714.5,589.3 714.9,594.3 C715.3,599.4 715.4,604.6 715.1,609.6 C714.8,614.7 714.1,619.8 713.0,624.8 C711.8,629.7 709.8,634.5 708.1,639.3 C706.5,644.1 704.6,648.8 702.8,653.6 C701.1,658.4 699.4,663.2 697.8,668.1 C696.3,673.0 694.8,677.8 693.4,682.7 C692.1,687.7 690.9,692.6 689.6,697.6 C688.4,702.5 687.2,707.5 686.1,712.5 C684.9,717.4 683.8,722.4 682.8,727.4 C681.8,732.4 680.9,737.4 680.0,742.5 C679.0,747.5 678.1,752.5 677.2,757.5 C676.4,762.5 675.4,767.6 674.7,772.6 C674.0,777.7 673.7,782.8 672.9,787.8 C672.1,792.8 671.0,797.9 669.8,802.8 C668.6,807.8 667.4,812.7 665.7,817.5 C664.0,822.3 661.9,827.0 659.7,831.6 C657.4,836.2 655.0,840.7 652.2,845.0 C649.4,849.2 646.1,853.2 642.8,857.0 C639.5,860.9 636.1,864.8 632.3,868.2 C628.5,871.6 624.6,875.2 620.2,877.4 C615.7,879.7 610.5,881.7 605.7,881.7 C600.9,881.6 595.1,880.0 591.4,877.2 C587.6,874.3 585.4,868.9 583.2,864.4 C580.9,859.9 579.7,854.8 578.0,850.0 C576.2,845.3 574.5,840.5 572.7,835.7 C571.0,830.9 569.1,826.2 567.4,821.4 C565.8,816.6 564.5,811.6 562.7,806.8 C560.9,802.1 558.8,797.4 556.5,792.9 C554.1,788.4 552.1,783.2 548.6,779.8 C545.0,776.5 539.9,773.2 535.4,772.7 C530.8,772.3 525.0,774.2 521.2,777.0 C517.4,779.8 515.0,785.1 512.4,789.4 C509.9,793.8 507.9,798.6 505.9,803.3 C503.8,808.0 502.0,812.7 500.2,817.5 C498.3,822.2 496.5,827.0 494.7,831.8 C493.0,836.6 491.3,841.4 489.6,846.2 C487.9,851.0 486.5,856.0 484.4,860.6 C482.3,865.2 480.5,870.6 477.1,874.0 C473.8,877.5 468.8,880.6 464.1,881.4 C459.5,882.2 453.9,880.6 449.3,878.8 C444.7,876.9 440.6,873.4 436.7,870.2 C432.8,866.9 429.2,863.2 425.8,859.4 C422.5,855.6 419.2,851.6 416.4,847.4 C413.5,843.2 411.0,838.7 408.6,834.2 C406.2,829.7 404.0,825.0 402.2,820.3 C400.3,815.6 398.8,810.6 397.6,805.7 C396.3,800.8 395.4,795.7 394.7,790.7 C393.9,785.6 393.6,780.5 393.0,775.5 C392.5,770.4 392.1,765.3 391.4,760.2 C390.8,755.2 390.1,750.1 389.3,745.1 C388.5,740.1 387.6,735.0 386.6,730.0 C385.6,725.0 384.6,720.0 383.5,715.0 C382.4,710.1 381.3,705.1 380.1,700.1 C378.9,695.2 377.5,690.2 376.2,685.3 C374.9,680.4 373.6,675.5 372.2,670.5 C370.8,665.6 369.5,660.7 368.0,655.8 C366.5,651.0 364.9,646.1 363.2,641.3 C361.5,636.5 359.4,631.8 358.0,626.9 C356.6,622.0 355.4,617.0 354.8,611.9 C354.2,606.9 354.0,601.7 354.2,596.7 C354.5,591.6 355.3,586.5 356.3,581.5 C357.4,576.6 358.8,571.6 360.7,566.9 C362.7,562.2 365.2,557.7 368.0,553.5 C370.8,549.3 374.0,545.2 377.5,541.5 C380.9,537.7 384.7,534.2 388.6,531.0 C392.6,527.8 396.7,524.7 401.1,522.2 C405.5,519.6 410.2,517.5 415.0,515.9 C419.8,514.2 424.7,513.3 429.9,512.3 C435.1,511.3 440.8,510.1 446.0,509.7 Z"/><path fill="none" stroke="#1E3A4C" stroke-width="5" stroke-linecap="round" d="M463.5,621 m-26,0 a26,26 0 0 1 52,0"/><path fill="#1E3A4C" fill-rule="evenodd" d="M596.5,611 m-25.5,0 a25.5,25.5 0 1 0 51,0 a25.5,25.5 0 1 0 -51,0 Z M586.5,601.5 m-10.5,0 a10.5,10.5 0 1 1 21,0 a10.5,10.5 0 1 1 -21,0 Z M600.5,613.5 m-6,0 a6,6 0 1 1 12,0 a6,6 0 1 1 -12,0 Z M499,641 H561 C561,660 548,671 530,671 C512,671 499,660 499,641 Z M505.5,646 H554.5 C553.5,650 551.5,652.5 549,653.5 H511 C508.5,652.5 506.5,650 505.5,646 Z M514.5,658.5 H545.5 C542.5,663.5 537,666 530,666 C523,666 517.5,663.5 514.5,658.5 Z"/></g><path fill="#1E3A4C" d="M3315.144589552239 -740V0H3144.144589552239V-740Z"/></svg></template>
+<template id="logo-jel"><svg xmlns="http://www.w3.org/2000/svg" viewBox="25.5 26 1019 1345"><path fill="#2F7D6D" fill-rule="evenodd" d="M383,300 L687,300 L1044.5,1371 L774,1371 L682.5,1066 L387.5,1066 L296,1371 L25.5,1371 Z M449.0,199.0 L627.0,199.0 L731.0,26.0 L499.0,26.0 Z M446.0,509.7 C451.2,509.2 456.2,509.1 461.3,509.6 C466.3,510.2 471.3,511.7 476.1,513.2 C481.0,514.7 485.7,516.8 490.3,518.9 C494.9,521.1 499.2,524.0 503.8,526.1 C508.5,528.1 513.4,529.8 518.3,531.1 C523.2,532.3 528.4,533.2 533.4,533.4 C538.5,533.6 543.6,533.1 548.6,532.1 C553.6,531.0 558.4,529.2 563.1,527.4 C567.9,525.5 572.4,523.0 577.1,521.0 C581.8,519.0 586.5,516.9 591.3,515.5 C596.2,514.0 601.2,512.8 606.2,512.1 C611.3,511.3 616.4,511.0 621.5,511.0 C626.6,511.0 631.7,511.2 636.7,512.0 C641.8,512.8 646.8,514.1 651.6,515.6 C656.4,517.2 661.2,519.1 665.7,521.5 C670.2,523.8 674.6,526.6 678.6,529.7 C682.7,532.7 686.6,536.1 690.1,539.8 C693.7,543.4 697.0,547.4 699.9,551.5 C702.8,555.7 705.4,560.2 707.5,564.8 C709.6,569.4 711.3,574.3 712.5,579.2 C713.7,584.2 714.5,589.3 714.9,594.3 C715.3,599.4 715.4,604.6 715.1,609.6 C714.8,614.7 714.1,619.8 713.0,624.8 C711.8,629.7 709.8,634.5 708.1,639.3 C706.5,644.1 704.6,648.8 702.8,653.6 C701.1,658.4 699.4,663.2 697.8,668.1 C696.3,673.0 694.8,677.8 693.4,682.7 C692.1,687.7 690.9,692.6 689.6,697.6 C688.4,702.5 687.2,707.5 686.1,712.5 C684.9,717.4 683.8,722.4 682.8,727.4 C681.8,732.4 680.9,737.4 680.0,742.5 C679.0,747.5 678.1,752.5 677.2,757.5 C676.4,762.5 675.4,767.6 674.7,772.6 C674.0,777.7 673.7,782.8 672.9,787.8 C672.1,792.8 671.0,797.9 669.8,802.8 C668.6,807.8 667.4,812.7 665.7,817.5 C664.0,822.3 661.9,827.0 659.7,831.6 C657.4,836.2 655.0,840.7 652.2,845.0 C649.4,849.2 646.1,853.2 642.8,857.0 C639.5,860.9 636.1,864.8 632.3,868.2 C628.5,871.6 624.6,875.2 620.2,877.4 C615.7,879.7 610.5,881.7 605.7,881.7 C600.9,881.6 595.1,880.0 591.4,877.2 C587.6,874.3 585.4,868.9 583.2,864.4 C580.9,859.9 579.7,854.8 578.0,850.0 C576.2,845.3 574.5,840.5 572.7,835.7 C571.0,830.9 569.1,826.2 567.4,821.4 C565.8,816.6 564.5,811.6 562.7,806.8 C560.9,802.1 558.8,797.4 556.5,792.9 C554.1,788.4 552.1,783.2 548.6,779.8 C545.0,776.5 539.9,773.2 535.4,772.7 C530.8,772.3 525.0,774.2 521.2,777.0 C517.4,779.8 515.0,785.1 512.4,789.4 C509.9,793.8 507.9,798.6 505.9,803.3 C503.8,808.0 502.0,812.7 500.2,817.5 C498.3,822.2 496.5,827.0 494.7,831.8 C493.0,836.6 491.3,841.4 489.6,846.2 C487.9,851.0 486.5,856.0 484.4,860.6 C482.3,865.2 480.5,870.6 477.1,874.0 C473.8,877.5 468.8,880.6 464.1,881.4 C459.5,882.2 453.9,880.6 449.3,878.8 C444.7,876.9 440.6,873.4 436.7,870.2 C432.8,866.9 429.2,863.2 425.8,859.4 C422.5,855.6 419.2,851.6 416.4,847.4 C413.5,843.2 411.0,838.7 408.6,834.2 C406.2,829.7 404.0,825.0 402.2,820.3 C400.3,815.6 398.8,810.6 397.6,805.7 C396.3,800.8 395.4,795.7 394.7,790.7 C393.9,785.6 393.6,780.5 393.0,775.5 C392.5,770.4 392.1,765.3 391.4,760.2 C390.8,755.2 390.1,750.1 389.3,745.1 C388.5,740.1 387.6,735.0 386.6,730.0 C385.6,725.0 384.6,720.0 383.5,715.0 C382.4,710.1 381.3,705.1 380.1,700.1 C378.9,695.2 377.5,690.2 376.2,685.3 C374.9,680.4 373.6,675.5 372.2,670.5 C370.8,665.6 369.5,660.7 368.0,655.8 C366.5,651.0 364.9,646.1 363.2,641.3 C361.5,636.5 359.4,631.8 358.0,626.9 C356.6,622.0 355.4,617.0 354.8,611.9 C354.2,606.9 354.0,601.7 354.2,596.7 C354.5,591.6 355.3,586.5 356.3,581.5 C357.4,576.6 358.8,571.6 360.7,566.9 C362.7,562.2 365.2,557.7 368.0,553.5 C370.8,549.3 374.0,545.2 377.5,541.5 C380.9,537.7 384.7,534.2 388.6,531.0 C392.6,527.8 396.7,524.7 401.1,522.2 C405.5,519.6 410.2,517.5 415.0,515.9 C419.8,514.2 424.7,513.3 429.9,512.3 C435.1,511.3 440.8,510.1 446.0,509.7 Z"/><path fill="none" stroke="#2F7D6D" stroke-width="5" stroke-linecap="round" d="M463.5,621 m-26,0 a26,26 0 0 1 52,0"/><path fill="#2F7D6D" fill-rule="evenodd" d="M596.5,611 m-25.5,0 a25.5,25.5 0 1 0 51,0 a25.5,25.5 0 1 0 -51,0 Z M586.5,601.5 m-10.5,0 a10.5,10.5 0 1 1 21,0 a10.5,10.5 0 1 1 -21,0 Z M600.5,613.5 m-6,0 a6,6 0 1 1 12,0 a6,6 0 1 1 -12,0 Z M499,641 H561 C561,660 548,671 530,671 C512,671 499,660 499,641 Z M505.5,646 H554.5 C553.5,650 551.5,652.5 549,653.5 H511 C508.5,652.5 506.5,650 505.5,646 Z M514.5,658.5 H545.5 C542.5,663.5 537,666 530,666 C523,666 517.5,663.5 514.5,658.5 Z"/></svg></template>
+
+<script>
+(() => {
+'use strict';
+
+/* ======================================================================
+   Alapok
+   ====================================================================== */
+const ALAP_CONFIG = {
+  cegnev: 'dentÁl', cim: '', telefon: '', email: '', logo: '#logo-szines', logoMono: '#logo-mono',
+  pdfSzinesLogo: true, pdfLabjegyzet: '', ervenyessegNapok: 30, nullazasGeneralasUtan: true, cimzettElotag: 'Dr. '
+};
+const C = Object.assign({}, ALAP_CONFIG, window.CONFIG || {});
+const VERZIO = '1.1.0';
+const NBSP = '\u{00A0}';
+const MAX_MENNY = 9999;
+const MAX_AR = 99999999;                         // 99 999 999 Ft / db
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const BEEPITETT_BONGESZO = /FBAN|FBAV|FB_IAB|Instagram|Messenger|MicroMessenger|\bLine\//i.test(navigator.userAgent);
+
+/* Külső könyvtárak — rögzített verzió, SRI-ellenőrzéssel, offline gyorsítótárral (IndexedDB). */
+const KONYVTARAK = {
+  pdfmake: {
+    url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.11/build/pdfmake.min.js',
+    sri: 'sha384-vsaIaEjAOZA6uoCQ2pryCKIc8YGpQ/0HK5krdezL4PYvnmLzrizBMDJCZulvIomS',
+    globalis: 'pdfMake', nev: 'a PDF-készítő (pdfmake)', offline: true },
+  plexReg: {
+    url: 'https://cdn.jsdelivr.net/gh/IBM/plex@v6.4.2/IBM-Plex-Sans/fonts/complete/ttf/IBMPlexSans-Regular.ttf',
+    sri: 'sha384-cziFgImCECglg5C05zlbX8sxU1zL7NmL5cfugLEyZsrjC/8fPkBceDqgwMtXD4x+',
+    nev: 'az IBM Plex Sans Regular betű', offline: true },
+  plexSemi: {
+    url: 'https://cdn.jsdelivr.net/gh/IBM/plex@v6.4.2/IBM-Plex-Sans/fonts/complete/ttf/IBMPlexSans-SemiBold.ttf',
+    sri: 'sha384-jyEgdRQCMAV3UEM0fTQqUX4+0mklb1iO4n2//CFFaRMOODJpltrV7IkDac/ieoET',
+    nev: 'az IBM Plex Sans SemiBold betű', offline: true },
+  xlsx: {
+    url: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    sri: 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw',
+    globalis: 'XLSX', nev: 'az Excel-olvasó (SheetJS)', offline: true },
+  pdfjs: {
+    url: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    sri: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e',
+    globalis: 'pdfjsLib', nev: 'az előnézet (pdf.js)', offline: true },
+  pdfjsWorker: {
+    url: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    sri: 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2',
+    globalis: 'pdfjsWorker', nev: 'az előnézet feldolgozója (pdf.js)', offline: true },
+  roboto: {                                       // csak akkor töltődik le, ha az IBM Plex nem érhető el
+    url: 'https://cdn.jsdelivr.net/npm/pdfmake@0.3.11/build/vfs_fonts.js',
+    sri: 'sha384-pkBUW1wxcm6m7ZjKDxADnNHqnz+Sx9sAL1ndsLNv/GZnWZgodPYsju1yxeyQnn0c',
+    nev: 'a tartalék betűtípus (Roboto)', offline: false }
+};
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+function el(tag, attrs, ...gyerekek) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k === 'dataset') Object.assign(e.dataset, v);
+    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const g of gyerekek.flat()) if (g != null && g !== false && g !== '') e.append(g.nodeType ? g : String(g));
+  return e;
+}
+const IKON = {
+  minusz: '<path d="M5.5 12h13"/>',
+  plusz: '<path d="M12 5.5v13M5.5 12h13"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  letolt: '<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5"/><path d="M5 19.5h14"/>',
+  megoszt: '<path d="M12 14.5V3.5m0 0L8 7.5m4-4 4 4"/><path d="M8 10.5H6.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1H16"/>',
+  szem: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+  arcimke: '<path d="M3.5 12.6V5A1.5 1.5 0 0 1 5 3.5h7.6a1.5 1.5 0 0 1 1.06.44l6.9 6.9a1.5 1.5 0 0 1 0 2.12l-7.6 7.6a1.5 1.5 0 0 1-2.12 0l-6.9-6.9a1.5 1.5 0 0 1-.44-1.06Z"/><circle cx="8.5" cy="8.5" r="1.4"/>',
+  vissza: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  pipa: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  ceruza: '<path d="M4.5 19.5h4l10-10a2.12 2.12 0 0 0-3-3l-10 10v3Z"/>',
+  fel: '<path d="M12 19V5.5m0 0-5.5 5.5M12 5.5l5.5 5.5"/>',
+  le: '<path d="M12 5v13.5m0 0-5.5-5.5m5.5 5.5 5.5-5.5"/>',
+  balra: '<path d="M19 12H5.5m0 0 5.5-5.5M5.5 12l5.5 5.5"/>',
+  jobbra: '<path d="M5 12h13.5m0 0L13 6.5m5.5 5.5L13 17.5"/>',
+  figyelem: '<path d="M12 4.2 3 19.5h18L12 4.2Z"/><path d="M12 10v4.2M12 16.9v.2"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>'
+};
+const ikon = (n, extra = '') => `<svg class="ikon ${extra}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IKON[n]}</svg>`;
+const gombTartalom = (ikonNev, szoveg) => (ikonNev ? ikon(ikonNev) : '') + `<span>${esc(szoveg)}</span>`;
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const ket = n => String(n).padStart(2, '0');
+const norm = s => String(s).normalize('NFD').replace(/[\u{0300}-\u{036F}]/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const objektum = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+function uid(elotag) {
+  try { if (crypto.randomUUID) return elotag + crypto.randomUUID().slice(0, 8); } catch (e) { /* nincs */ }
+  return elotag + Math.random().toString(36).slice(2, 10);
+}
+function nevelo(szo) {                           // „a” vagy „az” a kiejtés szerint
+  const s = String(szo).trim().replace(/^[^\p{L}\p{N}]+/u, '');
+  if (!s) return 'a';
+  const sz = s.match(/^\d+/);
+  if (sz) { const d = sz[0]; return d[0] === '5' || (d[0] === '1' && d.length % 3 === 1) ? 'az' : 'a'; }
+  if (/^\p{Lu}(?!\p{Ll})/u.test(s)) return 'AEFILMNORSUXYÁÉÍÓÖŐÚÜŰ'.includes(s[0]) ? 'az' : 'a';   // betűszó, oszlopbetű
+  return 'aáeéiíoóöőuúüű'.includes(s[0].toLowerCase()) ? 'az' : 'a';
+}
+const Nevelo = s => { const n = nevelo(s); return n.charAt(0).toUpperCase() + n.slice(1); };
+
+/* ---------- számok és dátumok (magyar formátum) ---------- */
+const INTL = (() => {
+  for (const opt of [{ useGrouping: 'always', maximumFractionDigits: 2 }, { maximumFractionDigits: 2 }]) {
+    try { return new Intl.NumberFormat('hu-HU', opt); } catch (e) { /* következő */ }
+  }
+  return null;
+})();
+function keziSzam(n) {
+  const neg = n < 0; const kerek = Math.round(Math.abs(n) * 100) / 100;
+  const egesz = Math.floor(kerek); const tort = Math.round((kerek - egesz) * 100);
+  const e = String(egesz).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+  const t = tort ? ',' + String(tort).padStart(2, '0').replace(/0$/, '') : '';
+  return (neg ? '-' : '') + e + t;
+}
+function szam(n) {                               // ezres tagolás nem törő szóközzel, tizedesvessző
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '–';
+  if (Math.abs(n) < 0.005) n = 0;
+  if (INTL) {
+    const s = INTL.format(n).replace(/[\u{202F}\u{2009} ]/gu, NBSP).replace(/\u{2212}/gu, '-');
+    if (Math.abs(n) < 1000 || s.includes(NBSP)) return s;
+  }
+  return keziSzam(n);
+}
+const ft = n => szam(n) + NBSP + 'Ft';
+function datumok(d) {
+  const y = d.getFullYear(), m = ket(d.getMonth() + 1), n = ket(d.getDate());
+  return { kulcs: `${y}${m}${n}`, kijelzo: `${y}.${m}.${n}.`, fajl: `${y}-${m}-${n}`, igRag: `${y}.${m}.${n}-ig` };
+}
+function napokkal(d, napok) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + napok); return x; }
+const kerekit = x => Math.round(x * 100) / 100;
+
+/* ======================================================================
+   Tárolás (localStorage) — minden hozzáférés try/catch-ben
+   ====================================================================== */
+const KULCS = {
+  adatok: 'dentAl.adatok.v1',
+  valasztas: 'dentAl.valasztas.v1',
+  sorszam: 'dentAl.sorszam.v1',
+  beall: 'dentAl.beallitasok.v1',
+  elozo: 'dentAl.betoltesElotti.v1'
+};
+let tarolasHibaJelezve = false;
+function nyersOlvas(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function olvas(k, alap) {
+  const s = nyersOlvas(k);
+  if (s == null) return alap;
+  try { return JSON.parse(s); } catch (e) { return alap; }
+}
+function ir(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch (e) {
+    if (!tarolasHibaJelezve) {
+      tarolasHibaJelezve = true;
+      const betelt = e && (e.name === 'QuotaExceededError' || e.code === 22);
+      uzenet(betelt
+        ? 'Betelt a böngésző tárhelye, ezért a változások nem mentődnek. Készíts mentést fájlba az Árak lapon, és törölj régi webhelyadatokat a böngésző beállításaiban.'
+        : 'Ez a böngésző most nem engedi az adatok mentését (például privát böngészésben). A változások a lap bezárásakor elvesznek: nyisd meg normál ablakban, vagy készíts mentést fájlba az Árak lapon.',
+      { hiba: true, ido: 12000 });
+    }
+    return false;
+  }
+}
+function torolKulcs(k) { try { localStorage.removeItem(k); } catch (e) { /* nincs */ } }
+
+/* ======================================================================
+   Adatmodell
+   ====================================================================== */
+function alapAdatok() {
+  const orvosok = ['Peti', 'Dani', 'Anna'].map((nev, i) => ({ id: 'o' + (i + 1), nev }));
+  const sorok = [['tetel1', [10000, 15500, 7650]], ['tetel2', [8000, 13100, 5000]], ['tetel3', [9000, 1000, 6000]], ['tetel4', [10000, 2000, 7000]]];
+  const tetelek = sorok.map(([nev], i) => ({ id: 't' + (i + 1), nev }));
+  const arak = {};
+  sorok.forEach(([, a], i) => { const r = arak['t' + (i + 1)] = {}; a.forEach((v, j) => { r['o' + (j + 1)] = v; }); });
+  return { formatum: 1, orvosok, tetelek, arak, modositva: null };
+}
+const ervenyesAr = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_AR;
+function ellenorzottAdatok(x) {
+  if (!x || typeof x !== 'object' || !Array.isArray(x.orvosok) || !Array.isArray(x.tetelek)) return null;
+  const orvosok = [], tetelek = [], arak = {}, oId = new Set(), tId = new Set();
+  for (const o of x.orvosok) {
+    if (!o || typeof o.id !== 'string' || typeof o.nev !== 'string' || !o.nev.trim() || oId.has(o.id)) return null;
+    oId.add(o.id); orvosok.push({ id: o.id, nev: o.nev.trim() });
+  }
+  for (const t of x.tetelek) {
+    if (!t || typeof t.id !== 'string' || typeof t.nev !== 'string' || !t.nev.trim() || tId.has(t.id)) return null;
+    tId.add(t.id); tetelek.push({ id: t.id, nev: t.nev.trim() });
+  }
+  const forras = objektum(x.arak);
+  for (const t of tetelek) {
+    const r = objektum(Object.prototype.hasOwnProperty.call(forras, t.id) ? forras[t.id] : null);
+    arak[t.id] = {};
+    for (const o of orvosok) if (Object.prototype.hasOwnProperty.call(r, o.id) && ervenyesAr(r[o.id])) arak[t.id][o.id] = r[o.id];
+  }
+  return { formatum: 1, orvosok, tetelek, arak, modositva: typeof x.modositva === 'string' ? x.modositva : null };
+}
+let serultAdatJelzes = false;
+function betoltAdatok() {
+  const s = nyersOlvas(KULCS.adatok);
+  if (s == null) return alapAdatok();
+  let nyers;
+  try { nyers = JSON.parse(s); } catch (e) { nyers = undefined; }
+  const ok = nyers === undefined ? null : ellenorzottAdatok(nyers);
+  if (ok) return ok;
+  const alap = alapAdatok();                      // a sérült adat egyszer külön kulcsra kerül, utána az alapadatok
+  if (ir('dentAl.serult.' + Date.now(), s)) ir(KULCS.adatok, alap);
+  serultAdatJelzes = true;
+  return alap;
+}
+let adat = betoltAdatok();
+function mentAdatok() { adat.modositva = new Date().toISOString(); return ir(KULCS.adatok, adat); }
+const orvosById = id => adat.orvosok.find(o => o.id === id) || null;
+const tetelById = id => adat.tetelek.find(t => t.id === id) || null;
+const arOf = (tId, oId) => { const r = adat.arak[tId]; return r && Object.prototype.hasOwnProperty.call(r, oId) && ervenyesAr(r[oId]) ? r[oId] : null; };
+
+function betoltValasztas() {
+  const v = objektum(olvas(KULCS.valasztas, null));
+  const menny = {};
+  for (const [k, n] of Object.entries(objektum(v.menny))) {
+    if (tetelById(k) && Number.isInteger(n) && n > 0 && n <= MAX_MENNY) menny[k] = n;
+  }
+  return { orvosId: orvosById(v.orvosId) ? v.orvosId : null, menny };
+}
+let valasztas = betoltValasztas();
+function mentValasztas() { ir(KULCS.valasztas, valasztas); }
+function valasztasIgazit() {
+  if (valasztas.orvosId && !orvosById(valasztas.orvosId)) valasztas.orvosId = null;
+  if (!valasztas.orvosId && adat.orvosok.length === 1) valasztas.orvosId = adat.orvosok[0].id;   // egyetlen orvos: magától kiválasztva
+  for (const k of Object.keys(valasztas.menny)) if (!tetelById(k)) delete valasztas.menny[k];
+  mentValasztas();
+}
+
+let beall = objektum(olvas(KULCS.beall, null));
+const nullazasBe = () => typeof beall.nullazas === 'boolean' ? beall.nullazas : C.nullazasGeneralasUtan !== false;
+const szinesLogoBe = () => typeof beall.szinesLogo === 'boolean' ? beall.szinesLogo : C.pdfSzinesLogo !== false;
+function mentBeall() { return ir(KULCS.beall, beall); }
+
+/* ---------- napi sorszám: ÉÉÉÉHHNN-NN (memóriában is, ha a tárolás nem megy) ---------- */
+let sorszamMem = null;
+function sorszamKovetkezo(datumKulcs) {
+  const s = objektum(olvas(KULCS.sorszam, null));
+  const tarolt = s.datum === datumKulcs && Number.isInteger(s.utolso) ? s.utolso : 0;
+  const mem = sorszamMem && sorszamMem.datum === datumKulcs ? sorszamMem.utolso : 0;
+  return Math.max(tarolt, mem) + 1;
+}
+function sorszamFoglal(datumKulcs, n) { sorszamMem = { datum: datumKulcs, utolso: n }; ir(KULCS.sorszam, sorszamMem); }
+function sorszamVisszavon(datumKulcs, n) {
+  if (sorszamKovetkezo(datumKulcs) !== n + 1) return;   // közben újabb sorszám készült: nem vonjuk vissza
+  sorszamMem = { datum: datumKulcs, utolso: n - 1 }; ir(KULCS.sorszam, sorszamMem);
+}
+const sorszamSzoveg = (datumKulcs, n) => `${datumKulcs}-${n < 100 ? ket(n) : n}`;
+
+/* ======================================================================
+   Offline gyorsítótár (IndexedDB) és könyvtárbetöltés
+   ====================================================================== */
+const Tar = (() => {
+  let dbIgeret = null;
+  const allapot = { mukodik: true };
+  function nyit(verzio) {
+    return new Promise((res, rej) => {
+      try {
+        const r = verzio ? indexedDB.open('dentAl-arlista', verzio) : indexedDB.open('dentAl-arlista');
+        r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('fajlok')) r.result.createObjectStore('fajlok'); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error || new Error('IndexedDB hiba'));
+        r.onblocked = () => rej(new Error('IndexedDB foglalt'));
+      } catch (e) { rej(e); }
+    });
+  }
+  function db() {
+    if (!dbIgeret) {
+      dbIgeret = (async () => {
+        let d = await nyit();
+        if (!d.objectStoreNames.contains('fajlok')) { const v = d.version + 1; d.close(); d = await nyit(v); }   // hiányzó tároló: javítás
+        d.onversionchange = () => { d.close(); dbIgeret = null; };
+        return d;
+      })();
+      dbIgeret.catch(() => { allapot.mukodik = false; });
+    }
+    return dbIgeret;
+  }
+  function muvelet(mod, fn) {
+    return db().then(d => new Promise((res, rej) => {
+      const tx = d.transaction('fajlok', mod); const st = tx.objectStore('fajlok');
+      const r = fn(st);
+      tx.oncomplete = () => res(r && 'result' in r ? r.result : undefined);
+      tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error || new Error('megszakadt'));
+    }));
+  }
+  return {
+    allapot,
+    get: k => muvelet('readonly', st => st.get(k)).catch(() => null),
+    put: (k, v) => muvelet('readwrite', st => st.put(v, k)).then(() => true, () => { allapot.mukodik = false; return false; }),
+    kulcsok: () => muvelet('readonly', st => st.getAllKeys()).catch(() => []),
+    torol: k => muvelet('readwrite', st => st.delete(k)).then(() => true, () => false)
+  };
+})();
+
+class AppHiba extends Error {}                  // magyar, a felhasználónak szóló hibaüzenet
+class OfflineHiba extends AppHiba { constructor(kulcs) { super(KONYVTARAK[kulcs].nev); this.kulcs = kulcs; } }
+async function sriRendben(buf, sri) {
+  if (!sri) return true;
+  const subtle = window.crypto && crypto.subtle;
+  if (!subtle) return false;                     // nem biztonságos (http://) címen nem ellenőrizhető: nem futtatjuk
+  const [alg, vart] = sri.split('-');
+  const nev = { sha256: 'SHA-256', sha384: 'SHA-384', sha512: 'SHA-512' }[alg];
+  if (!nev) return true;
+  const h = new Uint8Array(await subtle.digest(nev, buf));
+  let s = ''; for (const b of h) s += String.fromCharCode(b);
+  return btoa(s) === vart;
+}
+const letoltesFolyamatban = new Map();
+function bajtok(kulcs) {
+  if (letoltesFolyamatban.has(kulcs)) return letoltesFolyamatban.get(kulcs);
+  const k = KONYVTARAK[kulcs];
+  const p = (async () => {
+    if (k.sri && !(window.crypto && crypto.subtle)) throw new AppHiba('Ezen a nem biztonságos (http://) címen a letöltött fájlok nem ellenőrizhetők, ezért nem töltöm be őket. Nyisd meg az oldalt https:// címen, vagy fájlként.');
+    const tarolt = await Tar.get(k.url);
+    if (tarolt && tarolt.bajtok instanceof ArrayBuffer && tarolt.bajtok.byteLength) {
+      if (await sriRendben(tarolt.bajtok, k.sri)) return tarolt.bajtok;
+      await Tar.torol(k.url);                     // sérült vagy kicserélt példány: újra letöltjük
+    }
+    let valasz;
+    try { valasz = await fetch(k.url, { mode: 'cors', credentials: 'omit' }); }
+    catch (e) { throw new OfflineHiba(kulcs); }
+    if (!valasz.ok) throw new AppHiba(`Nem sikerült letölteni: ${k.nev} (HTTP ${valasz.status}). Próbáld újra később.`);
+    const buf = await valasz.arrayBuffer();
+    if (!(await sriRendben(buf, k.sri))) throw new AppHiba(`A letöltött fájl (${k.nev}) nem egyezik a várt ellenőrzőösszeggel, ezért nem használom. Próbáld újra később.`);
+    await Tar.put(k.url, { bajtok: buf, ido: Date.now() });
+    return buf;
+  })();
+  letoltesFolyamatban.set(kulcs, p);
+  p.catch(() => letoltesFolyamatban.delete(kulcs));
+  return p;
+}
+const szkriptIgeretek = new Map();
+function szkript(kulcs) {
+  if (szkriptIgeretek.has(kulcs)) return szkriptIgeretek.get(kulcs);
+  const k = KONYVTARAK[kulcs];
+  const p = (async () => {
+    if (k.globalis && window[k.globalis]) return window[k.globalis];
+    const buf = await bajtok(kulcs);
+    await new Promise((res, rej) => {
+      const url = URL.createObjectURL(new Blob([buf], { type: 'text/javascript' }));
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = () => { URL.revokeObjectURL(url); res(); };
+      s.onerror = () => {
+        URL.revokeObjectURL(url); s.remove();
+        try {                                        // tartalék: beágyazott szkriptként futtatva
+          const s2 = document.createElement('script');
+          s2.text = new TextDecoder('utf-8').decode(buf);
+          document.head.appendChild(s2); res();
+        } catch (e) { rej(e); }
+      };
+      document.head.appendChild(s);
+    });
+    if (k.globalis && !window[k.globalis]) throw new AppHiba(`Nem sikerült elindítani: ${k.nev}. Töltsd újra az oldalt.`);
+    return k.globalis ? window[k.globalis] : true;
+  })();
+  szkriptIgeretek.set(kulcs, p);
+  p.catch(() => szkriptIgeretek.delete(kulcs));
+  return p;
+}
+async function offlineAllapot() {
+  const hianyzik = [];
+  for (const k of Object.values(KONYVTARAK)) if (k.offline) { const t = await Tar.get(k.url); if (!(t && t.bajtok)) hianyzik.push(k.nev); }
+  return { kesz: hianyzik.length === 0, hianyzik, tarolhato: Tar.allapot.mukodik };
+}
+async function regiGyorsitotarTorles() {
+  const ervenyes = new Set(Object.values(KONYVTARAK).map(k => k.url));
+  for (const kulcs of await Tar.kulcsok()) if (!ervenyes.has(kulcs)) await Tar.torol(kulcs);
+}
+
+/* ---------- betűk: a felületen és a PDF-ben ugyanaz az IBM Plex Sans ---------- */
+let feluletBetuIgeret = null;
+function feluletBetuk() {
+  if (!feluletBetuIgeret) feluletBetuIgeret = (async () => {
+    if (!('FontFace' in window) || !document.fonts) return false;
+    const [r, s] = await Promise.all([bajtok('plexReg'), bajtok('plexSemi')]);
+    const f1 = new FontFace('IBM Plex Sans', r.slice(0), { weight: '400', style: 'normal' });
+    const f2 = new FontFace('IBM Plex Sans', s.slice(0), { weight: '600', style: 'normal' });
+    await Promise.all([f1.load(), f2.load()]);
+    document.fonts.add(f1); document.fonts.add(f2);
+    return true;
+  })().catch(() => false);
+  return feluletBetuIgeret;
+}
+
+/* ======================================================================
+   Logók (beágyazott sablon, saját SVG-szöveg vagy PNG/JPEG data URL)
+   ====================================================================== */
+function logoForras(beallitas) {
+  if (typeof beallitas !== 'string' || !beallitas.trim()) return null;
+  let s = beallitas.trim();
+  if (s.startsWith('#')) {
+    const t = document.getElementById(s.slice(1));
+    const svg = t && t.content ? t.content.querySelector('svg') : null;
+    s = svg ? svg.outerHTML : '';
+  }
+  if (/^data:image\/(png|jpe?g);base64,/i.test(s)) return { kep: s };
+  const m = s.match(/<svg[\s\S]*<\/svg>/i);
+  if (!m) return null;
+  const arany = svgArany(m[0]);
+  return arany ? { svg: m[0], arany } : null;
+}
+function svgArany(svg) {
+  try {
+    const gyoker = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+    if (!gyoker || gyoker.nodeName.toLowerCase() !== 'svg') return null;
+    const vb = (gyoker.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+    if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) return vb[3] / vb[2];
+    const w = parseFloat(gyoker.getAttribute('width')), h = parseFloat(gyoker.getAttribute('height'));
+    if (w > 0 && h > 0) return h / w;
+  } catch (e) { /* nincs */ }
+  return null;
+}
+function fejlecLogo() {
+  const hely = $('#logo');
+  const f = logoForras(C.logo);
+  hely.innerHTML = '';
+  if (f && f.svg) {
+    hely.innerHTML = f.svg;
+    const s = hely.querySelector('svg');
+    if (s) { s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false'); }
+  } else if (f && f.kep) hely.append(el('img', { src: f.kep, alt: '' }));
+  else hely.append(el('span', { class: 'logo-szoveg', text: C.cegnev }));
+}
+
+/* ======================================================================
+   Értesítések és párbeszédablakok
+   ====================================================================== */
+function uzenet(szoveg, { hiba = false, ido = 4500, gomb = null, kattintas = null } = {}) {
+  const hely = $('#uzenetek');
+  while (hely.children.length >= 2) hely.firstElementChild.remove();
+  const doboz = el('div', { class: 'uzenet' + (hiba ? ' hiba' : ''), role: hiba ? 'alert' : 'status' }, el('p', { text: szoveg }));
+  let idozito = null;
+  const zar = () => { clearTimeout(idozito); doboz.remove(); };
+  if (gomb) doboz.append(el('button', { type: 'button', text: gomb, onclick: () => { zar(); if (kattintas) kattintas(); } }));
+  doboz.append(el('button', { type: 'button', 'aria-label': 'Értesítés bezárása', html: ikon('x'), onclick: zar }));
+  hely.append(doboz);
+  idozito = setTimeout(zar, ido);
+  return zar;
+}
+
+const dlg = $('#dlg');
+let dlgFeloldo = null;
+function parbeszed({ cim, leiras = '', tartalom = null, gombok = [{ szoveg: 'Rendben', ertek: true, tipus: 'fo' }], szeles = false, fokusz = null, bezaroGomb = false }) {
+  if (dlg.open) dlgBezar(null);
+  dlg.innerHTML = '';
+  dlg.classList.toggle('szeles', !!szeles);
+  const h = el('h2', { id: 'dlgCim', text: cim, tabindex: '-1' });
+  const fej = el('div', { class: 'dlg-fej' }, h);
+  if (bezaroGomb) fej.append(el('button', { type: 'button', class: 'dlg-zar', 'aria-label': 'Bezárás', html: ikon('x'), onclick: () => dlgBezar(null) }));
+  if (leiras) { fej.append(el('p', { id: 'dlgLeiras', text: leiras })); dlg.setAttribute('aria-describedby', 'dlgLeiras'); }
+  else dlg.removeAttribute('aria-describedby');
+  dlg.append(fej);
+  if (tartalom) dlg.append(el('div', { class: 'dlg-tartalom' }, tartalom));
+  if (gombok.length) {
+    const lab = el('div', { class: 'dlg-lab' });
+    for (const g of gombok) {
+      const b = el('button', { type: 'button', class: 'gomb gomb-' + (g.tipus || 'masod'), html: gombTartalom(g.ikon, g.szoveg), id: g.id || null });
+      b.addEventListener('click', () => {
+        if (g.kattintas) { const r = g.kattintas(b); if (r === false) return; }
+        dlgBezar(g.ertek === undefined ? null : g.ertek);
+      });
+      lab.append(b);
+    }
+    dlg.append(lab);
+  }
+  const elozoFokusz = document.activeElement;
+  return new Promise(res => {
+    dlgFeloldo = v => { res(v); if (elozoFokusz && elozoFokusz.isConnected && typeof elozoFokusz.focus === 'function') { try { elozoFokusz.focus({ preventScroll: true }); } catch (e) { /* nincs */ } } };
+    if (typeof dlg.showModal === 'function') { try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); } }
+    else { dlg.setAttribute('open', ''); dlg.classList.add('nyitott-tartalek'); }
+    const f = fokusz ? (typeof fokusz === 'string' ? dlg.querySelector(fokusz) : fokusz) : h;
+    setTimeout(() => { try { f.focus({ preventScroll: true }); } catch (e) { /* nincs */ } }, 30);
+  });
+}
+function dlgBezar(ertek) {
+  const r = dlgFeloldo; dlgFeloldo = null;
+  if (dlg.open) { try { dlg.close(); } catch (e) { dlg.removeAttribute('open'); } }
+  dlg.classList.remove('nyitott-tartalek');
+  if (r) r(ertek);
+}
+dlg.addEventListener('cancel', e => { e.preventDefault(); dlgBezar(null); });
+dlg.addEventListener('close', () => { setTimeout(() => { if (!dlg.open) dlg.innerHTML = ''; }, 0); });   // az előnézet vásznát is elengedi
+dlg.addEventListener('click', e => {             // kattintás a háttérre: bezárás
+  if (e.target !== dlg) return;
+  const r = dlg.getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlgBezar(null);
+});
+const megerosites = (cim, leiras, igen, veszely = false) => parbeszed({
+  cim, leiras, gombok: [{ szoveg: 'Mégse', ertek: false, tipus: 'masod' }, { szoveg: igen, ertek: true, tipus: veszely ? 'veszely' : 'fo' }]
+});
+
+/* ======================================================================
+   Árlista nézet: orvosválasztó, kereső, tétellista
+   ====================================================================== */
+const lista = $('#tetelLista');
+const sorElemek = new Map();                     // tetelId -> { li, ar, ossz, input, minusz, plusz }
+let keresett = '';
+
+function orvosValasztoRajzol() {
+  const hely = $('#orvosValaszto');
+  hely.innerHTML = '';
+  const n = adat.orvosok.length;
+  if (n === 0) {
+    hely.append(el('div', { class: 'ures' }, el('p', { text: 'Még nincs orvos. Vegyél fel orvost az Árak lapon.' }), el('a', { class: 'gomb gomb-masod', href: '#arak', text: 'Árak megnyitása' })));
+  } else if (n <= 4) {
+    const csoport = el('div', { class: 'szegmens', role: 'radiogroup', 'aria-labelledby': 'orvosCim', 'data-n': n, style: `--n:${n}` });
+    adat.orvosok.forEach((o, i) => {
+      const val = o.id === valasztas.orvosId;
+      const tab = val || (!valasztas.orvosId && i === 0) ? '0' : '-1';
+      csoport.append(el('button', { type: 'button', role: 'radio', 'aria-checked': val ? 'true' : 'false', tabindex: tab, dataset: { id: o.id }, text: o.nev }));
+    });
+    csoport.addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) orvosValaszt(b.dataset.id); });
+    csoport.addEventListener('keydown', e => {
+      const gombok = $$('button[data-id]', csoport); const i = gombok.indexOf(document.activeElement);
+      if (i < 0) return;
+      let j = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % gombok.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + gombok.length) % gombok.length;
+      else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = gombok.length - 1;
+      if (j == null) return;
+      e.preventDefault(); orvosValaszt(gombok[j].dataset.id); gombok[j].focus();
+    });
+    hely.append(csoport);
+  } else {
+    const sel = el('select', { class: 'orvos-select', id: 'orvosSelect', 'aria-labelledby': 'orvosCim', required: true });
+    sel.append(el('option', { value: '', text: 'Válassz orvost…', disabled: true, selected: !valasztas.orvosId }));
+    for (const o of adat.orvosok) sel.append(el('option', { value: o.id, text: o.nev, selected: o.id === valasztas.orvosId }));
+    sel.addEventListener('change', () => orvosValaszt(sel.value));
+    hely.append(el('div', { class: 'select-keret' }, sel, el('span', { html: ikon('vissza') })));
+  }
+  orvosTippFrissit();
+}
+function orvosTippFrissit() { $('#orvosTipp').hidden = !!valasztas.orvosId || !adat.orvosok.length || !$('#orvosHiba').hidden; }
+function orvosValaszt(id) {
+  if (!orvosById(id)) return;
+  const valtozott = valasztas.orvosId !== id;
+  valasztas.orvosId = id; mentValasztas();
+  orvosHibaTorol(); savIdeiglenesTorol();
+  for (const b of $$('#orvosValaszto button[data-id]')) {
+    const v = b.dataset.id === id; b.setAttribute('aria-checked', v ? 'true' : 'false'); b.tabIndex = v ? 0 : -1;
+  }
+  if (valtozott) { keszModBezar(); listaArakFrissit(); osszegFrissit(); }
+}
+function orvosHibaTorol() { $('#orvosBlokk').classList.remove('hibas'); $('#orvosHiba').hidden = true; orvosTippFrissit(); }
+
+function listaRajzol() {
+  lista.innerHTML = ''; sorElemek.clear();
+  for (const t of adat.tetelek) {
+    const input = el('input', { class: 'menny', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', autocomplete: 'off', enterkeyhint: 'done', 'aria-label': `Mennyiség, ${t.nev}`, value: String(valasztas.menny[t.id] || 0) });
+    const minusz = el('button', { type: 'button', class: 'lep lep-minusz', 'aria-label': `Eggyel kevesebb: ${t.nev}`, html: ikon('minusz') });
+    const plusz = el('button', { type: 'button', class: 'lep lep-plusz', 'aria-label': `Eggyel több: ${t.nev}`, html: ikon('plusz') });
+    const ar = el('span', { class: 'tetel-ar' });
+    const ossz = el('span', { class: 'tetel-sor-ossz', hidden: true });
+    const li = el('li', { class: 'tetel', dataset: { id: t.id, kereso: norm(t.nev) } },
+      el('div', { class: 'tetel-szoveg' }, el('span', { class: 'tetel-nev', text: t.nev }), ar, ossz),
+      el('div', { class: 'lepteto', role: 'group', 'aria-label': `${t.nev} mennyisége` }, minusz, input, plusz));
+    sorElemek.set(t.id, { li, ar, ossz, input, minusz, plusz });
+    lista.append(li);
+  }
+  $('#keresoSor').hidden = adat.tetelek.length <= 8;
+  if (adat.tetelek.length <= 8 && keresett) { keresett = ''; $('#kereso').value = ''; }
+  $('#nincsTetel').hidden = adat.tetelek.length > 0;
+  listaArakFrissit(); szuro();
+}
+function sorFrissit(id) {
+  const s = sorElemek.get(id); if (!s) return;
+  const m = valasztas.menny[id] || 0;
+  const oId = valasztas.orvosId;
+  const ar = oId ? arOf(id, oId) : null;
+  const nincsAr = !!oId && ar == null;
+  s.li.classList.toggle('valasztott', m > 0 && !nincsAr);
+  s.li.classList.toggle('nulla', m === 0);
+  s.li.classList.toggle('arhiany', nincsAr && m > 0);
+  if (document.activeElement !== s.input) s.input.value = String(m);
+  s.minusz.disabled = m <= 0;
+  s.plusz.disabled = m >= MAX_MENNY || (nincsAr && m === 0);
+  s.input.disabled = nincsAr && m === 0;
+  if (!oId) { s.ar.hidden = true; }
+  else if (nincsAr) { s.ar.hidden = false; s.ar.textContent = m > 0 ? 'Nincs ára ennél az orvosnál: állítsd 0-ra, vagy adj meg árat' : 'Nincs ára ennél az orvosnál'; s.ar.classList.add('nincs'); }
+  else { s.ar.hidden = false; s.ar.textContent = `${ft(ar)} / db`; s.ar.classList.remove('nincs'); }
+  if (m > 0 && ar != null) { s.ossz.hidden = false; s.ossz.textContent = `${szam(m)} db = ${ft(kerekit(m * ar))}`; }
+  else s.ossz.hidden = true;
+}
+function listaArakFrissit() { for (const id of sorElemek.keys()) sorFrissit(id); }
+function szuro() {
+  const q = norm(keresett);
+  let lathato = 0, elso = true;
+  for (const { li } of sorElemek.values()) {
+    const ok = !q || li.dataset.kereso.includes(q);
+    li.hidden = !ok; li.classList.toggle('elso', ok && elso);
+    if (ok) { lathato++; elso = false; }
+  }
+  const n = adat.tetelek.length;
+  lista.hidden = lathato === 0;
+  $('#nincsTalalat').hidden = !(q && lathato === 0 && n);
+  if (q && lathato === 0) $('#nincsTalalatSzoveg').textContent = `Nincs „${keresett.trim()}” nevű tétel.`;
+  $('#keresoTorles').hidden = !keresett;
+  $('#tetelDarab').textContent = !n ? '' : q ? `${lathato} / ${n} tétel` : `${n} tétel`;
+}
+function mennyBeallit(id, n, { mezo = true } = {}) {
+  n = Math.max(0, Math.min(MAX_MENNY, Number.isFinite(n) ? Math.trunc(n) : 0));
+  const regi = valasztas.menny[id] || 0;
+  if (n === regi) { if (mezo) sorFrissit(id); return; }
+  if (n > 0) valasztas.menny[id] = n; else delete valasztas.menny[id];
+  mentValasztas();
+  keszModBezar(); savIdeiglenesTorol();
+  if (mezo) sorFrissit(id);
+  else { const s = sorElemek.get(id); const v = s.input.value; sorFrissit(id); s.input.value = v; }
+  osszegFrissit();
+}
+const lepes = (id, d) => mennyBeallit(id, (valasztas.menny[id] || 0) + d);
+
+/* nyomva tartva ismétlődő léptetés; ha utána görgetés lesz belőle, a léptetés visszaáll */
+let tartas = null;
+function tartasVege(e) {
+  if (!tartas) return;
+  clearTimeout(tartas.idozito); tartas.vege = true;
+  if (e && e.type === 'pointercancel' && tartas.ismetelt) { mennyBeallit(tartas.id, tartas.kezdo); tartas = null; }
+}
+lista.addEventListener('pointerdown', e => {
+  elokeszitesUtemez();                            // érintés közben ne fusson a háttérbeli PDF-készítés
+  const b = e.target.closest('.lep'); if (!b || b.disabled || e.button > 0) return;
+  tartasVege();
+  const id = b.closest('.tetel').dataset.id; const d = b.classList.contains('lep-plusz') ? 1 : -1;
+  const t = { gomb: b, id, kezdo: valasztas.menny[id] || 0, ismetelt: false, vege: false, idozito: null };
+  const ism = () => { if (t.vege || b.disabled) return; t.ismetelt = true; lepes(id, d); t.idozito = setTimeout(ism, 85); };
+  t.idozito = setTimeout(ism, 450);
+  tartas = t;
+});
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, tartasVege, true);
+lista.addEventListener('contextmenu', e => { if (e.target.closest('.lep')) e.preventDefault(); });
+lista.addEventListener('click', e => {
+  const b = e.target.closest('.lep'); if (!b || b.disabled) return;
+  if (tartas && tartas.gomb === b && tartas.ismetelt) { tartas = null; return; }
+  tartas = null;
+  lepes(b.closest('.tetel').dataset.id, b.classList.contains('lep-plusz') ? 1 : -1);
+});
+lista.addEventListener('input', e => {
+  const inp = e.target; if (!inp.classList.contains('menny')) return;
+  const nyers = inp.value;
+  const tiszta = nyers.normalize('NFKC').replace(/[.,].*$/, '').replace(/\D+/g, '');
+  let n = tiszta === '' ? 0 : parseInt(tiszta, 10);
+  const tul = n > MAX_MENNY;
+  if (tul) n = MAX_MENNY;
+  const kijelzo = tiszta === '' ? '' : String(n);
+  if (kijelzo !== nyers) inp.value = kijelzo;
+  mennyBeallit(inp.closest('.tetel').dataset.id, n, { mezo: false });
+  if (tul) savUzenet(`Egy tételből legfeljebb ${szam(MAX_MENNY)} db adható meg.`, { figy: true, ido: 4000 });
+});
+lista.addEventListener('focusin', e => {
+  const inp = e.target; if (!inp.classList.contains('menny')) return;
+  setTimeout(() => { try { inp.setSelectionRange(0, inp.value.length); } catch (er) { /* nincs */ } }, 0);
+});
+lista.addEventListener('focusout', e => {
+  const inp = e.target; if (!inp.classList.contains('menny')) return;
+  const id = inp.closest('.tetel').dataset.id;
+  inp.value = String(valasztas.menny[id] || 0); sorFrissit(id);
+});
+lista.addEventListener('keydown', e => {
+  if (e.target.classList.contains('menny') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
+$('#kereso').addEventListener('input', e => { keresett = e.target.value; szuro(); });
+const keresesTorol = () => { keresett = ''; $('#kereso').value = ''; szuro(); $('#kereso').focus(); };
+$('#keresoTorles').addEventListener('click', keresesTorol);
+$('#keresesTorlesGomb').addEventListener('click', keresesTorol);
+
+/* ======================================================================
+   Összesítő sáv
+   ====================================================================== */
+function kivalasztottSorok() {
+  const oId = valasztas.orvosId; const sorok = []; const arNelkul = [];
+  for (const t of adat.tetelek) {
+    const m = valasztas.menny[t.id] || 0; if (m <= 0) continue;
+    const ar = oId ? arOf(t.id, oId) : null;
+    if (oId && ar == null) arNelkul.push(t.nev);
+    else sorok.push({ id: t.id, nev: t.nev, menny: m, ar, osszeg: ar == null ? null : kerekit(m * ar) });
+  }
+  return { sorok, arNelkul };
+}
+function osszegFrissit() {
+  const { sorok, arNelkul } = kivalasztottSorok();
+  const p = $('#osszeg');
+  if (!sorok.length && !arNelkul.length) p.textContent = 'Még nincs kiválasztott tétel';
+  else if (!valasztas.orvosId) p.innerHTML = `${sorok.length}${NBSP}tétel, <span class="halvany">válassz orvost</span>`;
+  else {
+    const ossz = kerekit(sorok.reduce((a, s) => a + s.osszeg, 0));
+    p.innerHTML = `${sorok.length}${NBSP}tétel, <strong>${esc(ft(ossz))}</strong>` + (arNelkul.length ? ` <span class="halvany">· ${arNelkul.length}${NBSP}ár nélkül</span>` : '');
+  }
+  savUzenetFrissit();
+  elokeszitesUtemez();
+}
+let savUzenetAllapot = '';
+let savUzenetIdozito = null;                      // időzített (ideiglenes) üzenet van kint
+function savUzenet(szoveg, { figy = false, ido = 0 } = {}) {
+  const d = $('#savUzenet');
+  clearTimeout(savUzenetIdozito); savUzenetIdozito = null;
+  if (ido) savUzenetIdozito = setTimeout(() => { savUzenetIdozito = null; savUzenetFrissit(); }, ido);
+  const uj = szoveg ? (figy ? 'f:' : 'h:') + szoveg : '';
+  if (uj === savUzenetAllapot) return;          // ugyanaz a szöveg: nem rajzoljuk (és nem olvastatjuk fel) újra
+  savUzenetAllapot = uj;
+  if (!szoveg) { d.hidden = true; d.innerHTML = ''; savMeret(); return; }
+  d.className = 'sav-uzenet' + (figy ? ' figy' : '');
+  d.innerHTML = ikon('figyelem') + `<span>${esc(szoveg)}</span>`;
+  d.hidden = false; savMeret();
+}
+function savIdeiglenesTorol() { if (savUzenetIdozito) { clearTimeout(savUzenetIdozito); savUzenetIdozito = null; } }
+function savUzenetFrissit() {
+  if (savUzenetIdozito) return;                   // az ideiglenes üzenet a lejártáig kint marad
+  const { arNelkul } = kivalasztottSorok();
+  if (arNelkul.length && valasztas.orvosId) {
+    const o = orvosById(valasztas.orvosId);
+    savUzenet(`Nincs megadott ár (${cimzettNev(o.nev)}): ${arNelkul.join(', ')}. Adj meg árat az Árak lapon, vagy állítsd a mennyiséget 0-ra.`, { figy: true });
+  } else if (elokeszitett && elokeszitett.tulcsordul && elokeszitett.kulcs === aktualisKulcs()) {
+    savUzenet(tulcsordulasSzoveg(elokeszitett), { figy: true });
+  } else savUzenet(null);
+}
+function savMeret() {
+  const sav = $('#sav');
+  const h = sav.hidden ? 0 : sav.getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--sav-m', Math.ceil(h) + 'px');
+}
+if ('ResizeObserver' in window) new ResizeObserver(savMeret).observe($('#sav'));
+window.addEventListener('resize', savMeret);
+
+/* ======================================================================
+   PDF — elrendezés (A4 álló, mindig 1 oldal)
+   ====================================================================== */
+const PS = { tinta: '#1E3A4C', kiemeles: '#2F7D6D', zebra: '#F2F5F4', vonal: '#D5DCDA', szoveg: '#22292E', masodlagos: '#6B7780' };
+const OLDAL = { w: 595.28, h: 841.89, bal: 48, jobb: 48, fent: 44, lent: 60 };
+const TART_SZ = OLDAL.w - OLDAL.bal - OLDAL.jobb;
+const LOGO_SZ = 127.56;                          // 45 mm
+const LOGO_MAX_M = 62;                           // magas (pl. négyzetes) saját logónál legfeljebb ennyi pt
+const OSZLOP = [46, 80, 96];                     // Menny., Egységár, Összesen (pt); a Megnevezés kitölti a maradékot
+const CELLA_VIZSZ = 6;
+const SZINTEK = 11;                              // 0: 10 pt … 10: 7,5 pt
+function szint(k) {                             // a betűméret, a sormagasság és a térközök együtt, fokozatosan csökkennek
+  const t = k / (SZINTEK - 1);
+  return {
+    betu: 10 - 2.5 * t, fejBetu: 8.5 - 0.75 * t, pad: 5 - 3.4 * t, fejPad: 5 - 2.5 * t, sorTav: 1 - 0.05 * t,
+    elvalaszto: 14 - 5 * t, cimzettAlatt: 12 - 4 * t, osszegFelett: 16 - 6 * t
+  };
+}
+function cimzettNev(nev) {
+  const e = String(C.cimzettElotag || '').trim();
+  if (!e) return nev;
+  const alap = norm(e).replace(/\.$/, '');      // „dr”
+  const n = norm(nev);
+  return n === alap || n.startsWith(alap + '.') || n.startsWith(alap + ' ') ? nev : e + ' ' + nev;
+}
+function labjegyzetSzoveg(d) {
+  const r = [];
+  const n = Number(C.ervenyessegNapok);
+  if (n > 0) r.push(`Az árlista ${datumok(napokkal(d, n)).igRag} érvényes (a kiállítástól számított ${n} napig).`);
+  if (C.pdfLabjegyzet) r.push(String(C.pdfLabjegyzet).trim());
+  return r.join(' ');
+}
+function fajlnev(orvosNev, d) {
+  const tiszta = String(orvosNev).normalize('NFC')
+    .replace(/[\\/:*?"<>|\u{0000}-\u{001F}\u{007F}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{FEFF}]+/gu, ' ')
+    .trim().replace(/\s+/g, '_').replace(/^[_.-]+|[_.-]+$/g, '').slice(0, 80);
+  return `Arlista_${tiszta || 'orvos'}_${datumok(d).fajl}.pdf`;
+}
+
+/* pdfmake 0.3: a betűk a virtuális fájlrendszerbe kerülnek (addVirtualFileSystem + addFonts), egyszer */
+let pdfBetuNev = 'Plex';
+let pdfmakeIgeret = null;
+function pdfKeszenlet() {
+  if (!pdfmakeIgeret) pdfmakeIgeret = (async () => {
+    const pm = await szkript('pdfmake');
+    try {
+      const [r, s] = await Promise.all([bajtok('plexReg'), bajtok('plexSemi')]);
+      pm.addVirtualFileSystem({ 'IBMPlexSans-Regular.ttf': base64(r), 'IBMPlexSans-SemiBold.ttf': base64(s) });
+      pm.addFonts({ Plex: { normal: 'IBMPlexSans-Regular.ttf', bold: 'IBMPlexSans-SemiBold.ttf', italics: 'IBMPlexSans-Regular.ttf', bolditalics: 'IBMPlexSans-SemiBold.ttf' } });
+      pdfBetuNev = 'Plex';
+    } catch (e) {
+      try { await szkript('roboto'); } catch (e2) { throw e; }   // tartalék: a pdfmake saját Roboto betűje
+      pm.addFonts({ Roboto: { normal: 'Roboto-Regular.ttf', bold: 'Roboto-Medium.ttf', italics: 'Roboto-Italic.ttf', bolditalics: 'Roboto-MediumItalic.ttf' } });
+      pdfBetuNev = 'Roboto';
+    }
+    return pm;
+  })().catch(e => { pdfmakeIgeret = null; throw e; });
+  return pdfmakeIgeret;
+}
+function base64(buf) {
+  const b = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+const logoPngTartalek = new Map();
+async function svgPng(svg, arany, szelesPx) {   // tartalék, ha a pdfmake nem tudná az SVG-t rajzolni
+  if (logoPngTartalek.has(svg)) return logoPngTartalek.get(svg);
+  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('logó')); img.src = url; });
+  const cv = document.createElement('canvas');
+  cv.width = szelesPx; cv.height = Math.round(szelesPx * arany);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  const png = cv.toDataURL('image/png');
+  logoPngTartalek.set(svg, png);
+  return png;
+}
+async function kepArany(src) {
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = src; });
+  return img.naturalWidth ? img.naturalHeight / img.naturalWidth : null;
+}
+async function pdfLogo(szines) {
+  const f = logoForras(szines ? C.logo : C.logoMono) || logoForras(C.logo);
+  if (f && f.svg) return f;
+  if (f && f.kep) { try { const arany = await kepArany(f.kep); if (arany) return { kep: f.kep, arany }; } catch (e) { /* szöveges logó */ } }
+  return { szoveg: C.cegnev };
+}
+function logoElem(logo) {
+  if (logo.szoveg) return { text: logo.szoveg, fontSize: 22, bold: true, color: PS.tinta };
+  let w = LOGO_SZ, h = LOGO_SZ * logo.arany;
+  if (h > LOGO_MAX_M) { h = LOGO_MAX_M; w = h / logo.arany; }
+  return logo.svg ? { svg: logo.svg, width: w, height: h } : { image: logo.kep, width: w, height: h };
+}
+
+function docDef(b, k, logo, lent, oldalRogzit) {
+  const m = szint(k);
+  const fej = [
+    { text: 'Megnevezés', style: 'fej' },
+    { text: 'Menny.', style: 'fej', alignment: 'right' },
+    { text: 'Egységár', style: 'fej', alignment: 'right' },
+    { text: 'Összesen', style: 'fej', alignment: 'right' }
+  ];
+  const torzs = [fej].concat(b.sorok.map(s => [
+    { text: s.nev, lineHeight: m.sorTav },
+    { text: szam(s.menny) + NBSP + 'db', alignment: 'right', noWrap: true, lineHeight: m.sorTav },
+    { text: ft(s.ar), alignment: 'right', noWrap: true, lineHeight: m.sorTav },
+    { text: ft(s.osszeg), alignment: 'right', noWrap: true, lineHeight: m.sorTav }
+  ]));
+  const kapcsolat = [String(C.cim || '').trim(), [C.telefon, C.email].map(x => String(x || '').trim()).filter(Boolean).join('   ·   ')].filter(Boolean);
+  const cimzett = cimzettNev(b.orvos);
+  return {
+    pageSize: 'A4', pageOrientation: 'portrait',
+    pageMargins: [OLDAL.bal, OLDAL.fent, OLDAL.jobb, lent],
+    language: 'hu-HU',
+    info: {
+      title: `${C.cegnev} árlista – ${cimzett} – ${b.dk.kijelzo}`,
+      author: C.cegnev,
+      subject: `${C.cegnev} árlista ${cimzett} részére (sorszám: ${b.sorszam})`,
+      keywords: `árlista, ${C.cegnev}, ${b.sorszam}`,
+      creator: `${C.cegnev} árlista-generáló ${VERZIO}`,
+      producer: `${C.cegnev} árlista-generáló ${VERZIO}`
+    },
+    defaultStyle: { font: pdfBetuNev, fontSize: m.betu, color: PS.szoveg, lineHeight: 1 },
+    styles: { fej: { bold: true, fontSize: m.fejBetu, color: PS.masodlagos } },
+    content: [
+      {
+        columns: [
+          { width: '*', stack: [logoElem(logo)].concat(kapcsolat.map((sor, i) => ({ text: sor, fontSize: 8, color: PS.masodlagos, lineHeight: 1.1, margin: [0, i === 0 ? 9 : 1.5, 0, 0] }))) },
+          { width: 'auto', stack: [
+            { text: 'Árlista', fontSize: 21, bold: true, color: PS.tinta, alignment: 'right', margin: [0, -4, 0, 0] },
+            { text: b.dk.kijelzo, fontSize: 9.5, alignment: 'right', margin: [0, 3, 0, 0] },
+            { text: [{ text: 'Sorszám: ', color: PS.masodlagos }, { text: b.sorszam }], fontSize: 9, alignment: 'right', margin: [0, 2, 0, 0] }
+          ] }
+        ],
+        columnGap: 24
+      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: TART_SZ, y2: 0, lineWidth: 0.75, lineColor: PS.vonal }], margin: [0, m.elvalaszto, 0, m.elvalaszto] },
+      { text: [{ text: 'Címzett: ', color: PS.masodlagos }, { text: cimzett, bold: true, color: PS.tinta }], fontSize: 11, margin: [0, 0, 0, m.cimzettAlatt] },
+      {
+        table: { headerRows: 1, dontBreakRows: true, widths: ['*'].concat(OSZLOP), body: torzs },
+        layout: {
+          hLineWidth: i => (i === 1 ? 0.75 : 0),
+          vLineWidth: () => 0,
+          hLineColor: () => PS.kiemeles,
+          fillColor: i => (i > 0 && i % 2 === 0 ? PS.zebra : null),
+          paddingLeft: () => CELLA_VIZSZ, paddingRight: () => CELLA_VIZSZ,
+          paddingTop: i => (i === 0 ? m.fejPad : m.pad),
+          paddingBottom: i => (i === 0 ? m.fejPad : m.pad)
+        }
+      },
+      {
+        columns: [
+          { width: '*', text: '' },
+          {
+            width: 'auto',
+            table: { body: [[{ stack: [
+              { text: 'Végösszeg', fontSize: 9, color: PS.masodlagos },
+              { text: ft(b.osszeg), fontSize: 20, bold: true, color: PS.tinta, noWrap: true, margin: [0, 1, 0, 0] }
+            ] }]] },
+            layout: {
+              hLineWidth: () => 0, vLineWidth: i => (i === 0 ? 2.5 : 0), vLineColor: () => PS.kiemeles,
+              paddingLeft: () => 11, paddingRight: () => CELLA_VIZSZ, paddingTop: () => 1, paddingBottom: () => 1
+            }
+          }
+        ],
+        margin: [0, m.osszegFelett, 0, 0], unbreakable: true
+      }
+    ],
+    footer: (aktualis, osszes) => {
+      oldalRogzit(osszes);
+      return {
+        margin: [OLDAL.bal, 16, OLDAL.jobb, 0],
+        stack: [
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: TART_SZ, y2: 0, lineWidth: 0.5, lineColor: PS.vonal }] },
+          { columns: [
+            { width: '*', text: labjegyzetSzoveg(b.datum), fontSize: 7.5, color: PS.masodlagos, lineHeight: 1.15 },
+            { width: 'auto', text: `${aktualis}/${osszes}${NBSP}oldal`, noWrap: true, fontSize: 7.5, color: PS.masodlagos, alignment: 'right' }
+          ], columnGap: 18, margin: [0, 6, 0, 0] }
+        ]
+      };
+    }
+  };
+}
+
+async function renderSzinten(pm, b, k, logo, lent) {
+  let oldalak = 0;
+  const dd = docDef(b, k, logo, lent, n => { oldalak = Math.max(oldalak, n); });
+  const blob = await pm.createPdf(dd).getBlob();   // pdfmake 0.3: ígéret; a hiba elkapható
+  return { blob, oldalak, szint: k };
+}
+
+/* sorhossz-becslés: a kiinduló betűmérethez és a lábjegyzet magasságához (a döntést a tényleges oldalszám hozza) */
+let meroVaszon = null;
+function sorokSzama(szoveg, meret, szel) {
+  try {
+    if (!meroVaszon) meroVaszon = document.createElement('canvas').getContext('2d');
+    meroVaszon.font = `400 ${meret}px "IBM Plex Sans", Arial, sans-serif`;
+    let sorok = 1, akt = 0; const ur = meroVaszon.measureText(' ').width;
+    for (const szo of String(szoveg).split(/\s+/)) {
+      if (!szo) continue;
+      const w = meroVaszon.measureText(szo).width;
+      if (akt && akt + ur + w > szel) { sorok++; akt = w; } else akt += (akt ? ur : 0) + w;
+      while (akt > szel) { sorok++; akt -= szel; }
+    }
+    return sorok;
+  } catch (e) { return 1; }
+}
+const NEV_SZ = TART_SZ - OSZLOP.reduce((a, b) => a + b, 0) - 2 * CELLA_VIZSZ * (OSZLOP.length + 1);
+const SOR_TER = 560;                             // becsült hely a táblázatsoroknak (pt) — csak kiindulópont
+function becsultSzint(sorok) {
+  for (let k = 0; k < SZINTEK; k++) {
+    const m = szint(k); const lh = m.betu * 1.3 * m.sorTav;
+    let h = m.fejBetu * 1.3 + 2 * m.fejPad;
+    for (const s of sorok) h += sorokSzama(s.nev, m.betu, NEV_SZ) * lh + 2 * m.pad;
+    if (h <= SOR_TER) return k;
+  }
+  return SZINTEK - 1;
+}
+function alsoMargo(b) {                          // a lábjegyzet sorainak száma szerint (hosszú megjegyzés se lógjon le)
+  const sorok = sorokSzama(labjegyzetSzoveg(b.datum), 7.5, TART_SZ - 18 - 36);
+  return Math.max(OLDAL.lent, Math.ceil(16 + 0.5 + 6 + sorok * 7.5 * 1.3 * 1.15 + 16));
+}
+
+async function pdfGeneral(b) {
+  const pm = await pdfKeszenlet();
+  let logo = await pdfLogo(b.szines);
+  const lent = alsoMargo(b);
+  const futtat = async (k, bb = b) => {
+    try { return await renderSzinten(pm, bb, k, logo, lent); }
+    catch (e) {
+      if (!logo.svg) throw e;                    // SVG-hiba: PNG-tartalék, végül szöveges logó
+      try { logo = { kep: await svgPng(logo.svg, logo.arany, 1400), arany: logo.arany }; }
+      catch (e2) { logo = { szoveg: C.cegnev }; }
+      return renderSzinten(pm, bb, k, logo, lent);
+    }
+  };
+  let k = becsultSzint(b.sorok);
+  let e = await futtat(k), lefele = false;
+  while (e.oldalak > 1 && k < SZINTEK - 1) { k++; lefele = true; e = await futtat(k); }
+  if (e.oldalak === 1 && !lefele) {              // nagyobb betű is elfér? (fokozatosan felfelé)
+    while (k > 0) { const f = await futtat(k - 1); if (f.oldalak !== 1) break; k--; e = f; }
+  }
+  let elfer = null;
+  if (e.oldalak !== 1) {                         // nem fér el: hány tétel férne el a legkisebb betűvel?
+    let lo = 0, hi = b.sorok.length;
+    while (hi - lo > 1) {
+      const kozep = (lo + hi) >> 1;
+      const f = await futtat(SZINTEK - 1, Object.assign({}, b, { sorok: b.sorok.slice(0, kozep) }));
+      if (f.oldalak === 1) lo = kozep; else hi = kozep;
+    }
+    elfer = lo;
+  }
+  return { blob: e.blob, oldalak: e.oldalak, szint: e.szint, tulcsordul: e.oldalak !== 1, sorDb: b.sorok.length, elfer };
+}
+
+/* ======================================================================
+   PDF-folyamat: ellenőrzés, előkészítés, letöltés, megosztás
+   ====================================================================== */
+function pdfBemenet() {
+  if (!adat.orvosok.length) return { hiba: 'nincsOrvos' };
+  if (!adat.tetelek.length) return { hiba: 'nincsTetel' };
+  const orvos = orvosById(valasztas.orvosId);
+  const { sorok, arNelkul } = kivalasztottSorok();
+  if (!orvos) return { hiba: 'orvos' };
+  if (arNelkul.length) return { hiba: 'arnelkul', arNelkul, orvos };
+  if (!sorok.length) return { hiba: 'ures' };
+  const most = new Date(); const dk = datumok(most); const n = sorszamKovetkezo(dk.kulcs);
+  const szines = szinesLogoBe();
+  const b = {
+    orvos: orvos.nev, sorok, osszeg: kerekit(sorok.reduce((a, s) => a + s.osszeg, 0)), datum: most, dk,
+    sorszamN: n, sorszam: sorszamSzoveg(dk.kulcs, n), szines
+  };
+  b.kulcs = JSON.stringify([orvos.nev, sorok.map(s => [s.nev, s.menny, s.ar]), dk.kulcs, n, szines, VERZIO]);
+  return { ok: true, b };
+}
+function aktualisKulcs() { const a = pdfBemenet(); return a.ok ? a.b.kulcs : null; }
+
+let elokeszitett = null;                          // a háttérben előre elkészített PDF
+let elokeszitesIdozito = null;
+let generalasLanc = Promise.resolve();
+function elokeszitesUtemez() {
+  clearTimeout(elokeszitesIdozito);
+  elokeszitesIdozito = setTimeout(() => {
+    const indit = () => { if (!document.hidden) elokeszit().catch(() => {}); };
+    if (window.requestIdleCallback) requestIdleCallback(indit, { timeout: 1500 }); else indit();
+  }, 1200);
+}
+function elokeszit() {
+  const a = pdfBemenet();
+  if (!a.ok) return Promise.resolve(null);
+  if (elokeszitett && elokeszitett.kulcs === a.b.kulcs) return Promise.resolve(elokeszitett);
+  return generalas(a.b);
+}
+function generalas(b) {
+  const p = generalasLanc.then(async () => {
+    if (elokeszitett && elokeszitett.kulcs === b.kulcs) return elokeszitett;
+    const e = await pdfGeneral(b);
+    const kesz = Object.assign({ kulcs: b.kulcs, fajlnev: fajlnev(b.orvos, b.datum), sorszam: b.sorszam, sorszamN: b.sorszamN, dk: b.dk, vegleges: false }, e);
+    elokeszitett = kesz;
+    savUzenetFrissit();
+    return kesz;
+  });
+  generalasLanc = p.catch(() => {});
+  return p;
+}
+
+function validacioHiba(a) {
+  if (a.hiba === 'nincsOrvos') { savUzenet('Vegyél fel orvost az Árak lapon a PDF elkészítéséhez.', { ido: 6000 }); return; }
+  if (a.hiba === 'nincsTetel') { savUzenet('Vegyél fel tételeket az Árak lapon a PDF elkészítéséhez.', { ido: 6000 }); return; }
+  if (a.hiba === 'orvos') {
+    const blokk = $('#orvosBlokk');
+    blokk.classList.add('hibas');
+    const h = $('#orvosHiba'); h.innerHTML = ikon('figyelem') + '<span>Válassz orvost a PDF elkészítéséhez.</span>'; h.hidden = false;
+    orvosTippFrissit();
+    blokk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const f = $('#orvosValaszto [role=radio]') || $('#orvosSelect'); if (f) f.focus({ preventScroll: true });
+    return;
+  }
+  if (a.hiba === 'ures') {
+    savUzenet('Adj meg mennyiséget legalább egy tételnél a PDF elkészítéséhez.', { ido: 6000 });
+    const elso = $('#tetelLista .tetel:not([hidden]) .lep-plusz:not(:disabled)');
+    if (elso) { elso.scrollIntoView({ behavior: 'smooth', block: 'center' }); elso.focus({ preventScroll: true }); }
+    return;
+  }
+  if (a.hiba === 'arnelkul') {
+    parbeszed({
+      cim: 'Hiányzó ár',
+      leiras: `Ezeknek a tételeknek nincs ára (${cimzettNev(a.orvos.nev)}): ${a.arNelkul.join(', ')}.`,
+      tartalom: el('p', { text: 'Adj meg árat az Árak lapon, vagy állítsd ezeknél a tételeknél a mennyiséget 0-ra.' }),
+      gombok: [{ szoveg: 'Árak megnyitása', ertek: 'arak', tipus: 'masod' }, { szoveg: 'Rendben', ertek: true, tipus: 'fo' }]
+    }).then(v => { if (v === 'arak') arakMegnyit(); });
+  }
+}
+function tulcsordulasSzoveg(e) {
+  const tobb = e.elfer != null ? ` (legfeljebb ${e.elfer} fér el)` : '';
+  return `${e.sorDb}${NBSP}tétel nem fér el egy A4-es oldalon${tobb}, a legkisebb betűmérettel sem. Vegyél ki tételeket, vagy bontsd két árlistára.`;
+}
+function tulcsordulasJelzes(e) {
+  return parbeszed({ cim: 'Nem fér el egy oldalon', leiras: tulcsordulasSzoveg(e), gombok: [{ szoveg: 'Rendben', ertek: true, tipus: 'fo' }] });
+}
+function hibaSzoveg(e) {
+  if (e instanceof OfflineHiba) return `Még nincs letöltve erre az eszközre: ${e.message}. Csatlakozz az internethez, és próbáld újra; utána offline is működik.`;
+  if (e instanceof AppHiba || e instanceof FelhasznaloiHiba) return e.message;
+  console.error(e);
+  return 'A PDF nem készült el. Töltsd újra az oldalt, és próbáld meg ismét.';
+}
+
+const megosztasTamogatott = (() => {
+  try {
+    return !!(navigator.canShare && navigator.share && typeof File === 'function' &&
+      navigator.canShare({ files: [new File([new Blob(['%PDF-1.4'], { type: 'application/pdf' })], 'proba.pdf', { type: 'application/pdf' })] }));
+  } catch (e) { return false; }
+})();
+
+let fut = false;
+let megosztasFut = false;
+let utolso = null;                                 // a sávban mutatott legutóbbi PDF
+function gombFoglalt(gomb, igen, szoveg) {
+  if (!gomb) return;
+  if (igen) { gomb.dataset.eredeti = gomb.innerHTML; gomb.innerHTML = `<span class="porgo" aria-hidden="true"></span><span>${esc(szoveg)}</span>`; gomb.setAttribute('aria-busy', 'true'); gomb.disabled = true; }
+  else { if (gomb.dataset.eredeti) gomb.innerHTML = gomb.dataset.eredeti; gomb.removeAttribute('aria-busy'); gomb.disabled = false; }
+}
+/* a sorszám csak akkor foglalható le, ha ugyanaz a nap és közben nem készült másik árlista */
+const veglegesitheto = kesz => kesz.vegleges || (datumok(new Date()).kulcs === kesz.dk.kulcs && sorszamKovetkezo(kesz.dk.kulcs) === kesz.sorszamN);
+function veglegesit(kesz) { if (!kesz.vegleges) { sorszamFoglal(kesz.dk.kulcs, kesz.sorszamN); kesz.vegleges = true; } }
+
+async function pdfMuvelet(mod, gomb) {
+  if (fut || megosztasFut) return;
+  const a = pdfBemenet();
+  if (!a.ok) return validacioHiba(a);
+  orvosHibaTorol();
+  let kesz = elokeszitett && elokeszitett.kulcs === a.b.kulcs ? elokeszitett : null;
+  if (kesz && kesz.tulcsordul) return tulcsordulasJelzes(kesz);
+  if (kesz && mod === 'megosztas' && veglegesitheto(kesz)) return megosztas(kesz, false);   // azonnal, a koppintáson belül
+  fut = true; gombFoglalt(gomb, true, 'PDF készül…');
+  try { kesz = await generalas(a.b); }
+  catch (e) { uzenet(hibaSzoveg(e), { hiba: true, ido: 9000 }); return; }
+  finally { fut = false; gombFoglalt(gomb, false); }
+  if (kesz.tulcsordul) return tulcsordulasJelzes(kesz);
+  if (!veglegesitheto(kesz)) { elokeszitett = null; return pdfMuvelet(mod, gomb); }
+  if (mod === 'letoltes') { veglegesit(kesz); letolt(kesz.blob, kesz.fajlnev); utana(kesz, 'letoltve'); }
+  else megosztas(kesz, false);
+}
+function letolt(blob, nev) {
+  // iOS-en a PDF típusú blobot a Safari néha a lap helyén nyitja meg letöltés helyett (WebKit 263608)
+  const forras = IOS && blob.type === 'application/pdf' ? new Blob([blob], { type: 'application/octet-stream' }) : blob;
+  const url = URL.createObjectURL(forras);
+  const a = el('a', { href: url, download: nev, rel: 'noopener', style: 'display:none' });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+function megnyit(blob) {
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if (w) { try { w.opener = null; } catch (e) { /* nincs */ } }
+  else { const a = el('a', { href: url, target: '_blank', rel: 'noopener', style: 'display:none' }); document.body.append(a); a.click(); a.remove(); }
+  setTimeout(() => URL.revokeObjectURL(url), 300000);
+}
+function megosztas(kesz, ujraKeszbol) {
+  if (megosztasFut) return;
+  const fajl = new File([kesz.blob], kesz.fajlnev, { type: 'application/pdf' });
+  let tud = false;
+  try { tud = !!(navigator.canShare && navigator.canShare({ files: [fajl] })); } catch (e) { tud = false; }
+  if (!tud) {
+    veglegesit(kesz);
+    letolt(kesz.blob, kesz.fajlnev);
+    if (!ujraKeszbol) utana(kesz, 'letoltve');
+    uzenet('Ezen az eszközön a megosztás nem érhető el, ezért a PDF letöltődött.');
+    return;
+  }
+  const ujVeglegesites = !kesz.vegleges;
+  veglegesit(kesz);
+  let igeret;
+  try { igeret = navigator.share({ files: [fajl], title: kesz.fajlnev }); }
+  catch (e) { igeret = Promise.reject(e); }
+  megosztasFut = true;
+  igeret.then(() => {
+    megosztasFut = false;
+    if (!ujraKeszbol) utana(kesz, 'megosztva');
+    else uzenet(`Megosztva: ${kesz.fajlnev}`);
+  }, err => {
+    megosztasFut = false;
+    const nev = err && err.name;
+    if (nev === 'InvalidStateError') return;     // már nyitva van egy megosztás
+    if (ujVeglegesites) { sorszamVisszavon(kesz.dk.kulcs, kesz.sorszamN); kesz.vegleges = false; }
+    if (nev === 'AbortError') { if (!ujraKeszbol) uzenet('A megosztás megszakadt; a mennyiségek megmaradtak.'); return; }
+    if (nev === 'NotAllowedError' && !ujraKeszbol) {
+      keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny: null, nullazva: false, megosztasraVar: true });
+      return;
+    }
+    uzenet('A megosztás nem sikerült. Töltsd le a PDF-et, és csatold kézzel.', { hiba: true, ido: 8000 });
+  });
+}
+function utana(kesz, mod) {
+  const elozoMenny = Object.assign({}, valasztas.menny);
+  let nullazva = false;
+  if (nullazasBe()) { valasztas.menny = {}; mentValasztas(); listaArakFrissit(); nullazva = true; }
+  osszegFrissit();
+  keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny, nullazva, mod });
+  tartosTarolasKeres();
+}
+
+/* ---------- „Kész” állapot az alsó sávban ---------- */
+function keszModMutat(u) {
+  utolso = u;
+  const fokuszASavban = $('#sav').contains(document.activeElement);
+  $('#savNormal').hidden = true; $('#savKesz').hidden = false;
+  $('#savKesz .pipa').innerHTML = ikon(u.megosztasraVar ? 'megoszt' : 'pipa');
+  $('#keszCim').textContent = u.megosztasraVar ? 'A PDF elkészült. Koppints a Megosztás gombra.' : `${u.mod === 'megosztva' ? 'Megosztva' : 'Letöltve'} · sorszám: ${u.sorszam}`;
+  $('#keszFajl').textContent = u.fajlnev;
+  const mg = $('#keszMegosztGomb'), lg = $('#keszLetoltGomb');
+  mg.hidden = !megosztasTamogatott;
+  mg.innerHTML = gombTartalom('megoszt', 'Megosztás');
+  lg.innerHTML = gombTartalom('letolt', u.megosztasraVar ? 'Letöltés' : 'Letöltés újra');
+  lg.className = 'gomb ' + (megosztasTamogatott ? 'gomb-masod' : 'gomb-fo');
+  $('#keszGombok').classList.toggle('egy', !megosztasTamogatott);
+  $('#keszVisszaGomb').hidden = !u.nullazva;
+  $('#keszMegnyitGomb').hidden = !!u.megosztasraVar;
+  $('#keszUjGomb').textContent = u.megosztasraVar ? 'Mégse' : (u.nullazva ? 'Új árlista' : 'Bezárás');
+  savUzenetFrissit(); savMeret();
+  if (u.megosztasraVar || fokuszASavban) (mg.hidden ? lg : mg).focus({ preventScroll: true });
+}
+function keszModBezar() {
+  if (!utolso) return;
+  const fokuszVolt = $('#savKesz').contains(document.activeElement);
+  utolso = null;
+  $('#savKesz').hidden = true; $('#savNormal').hidden = false; savMeret();
+  if (fokuszVolt) $('#letoltGomb').focus({ preventScroll: true });
+}
+$('#keszMegosztGomb').addEventListener('click', () => {
+  if (!utolso) return;
+  if (utolso.megosztasraVar) {
+    const k = utolso.kesz;
+    keszModBezar();
+    if (!veglegesitheto(k)) { elokeszitett = null; pdfMuvelet('megosztas', $('#megosztGomb')); return; }
+    megosztas(k, false); return;
+  }
+  megosztas(utolso.kesz, true);
+});
+$('#keszLetoltGomb').addEventListener('click', () => {
+  if (!utolso) return;
+  if (utolso.megosztasraVar) {
+    const k = utolso.kesz; keszModBezar();
+    if (!veglegesitheto(k)) { elokeszitett = null; pdfMuvelet('letoltes', $('#letoltGomb')); return; }
+    veglegesit(k); letolt(k.blob, k.fajlnev); utana(k, 'letoltve'); return;
+  }
+  letolt(utolso.blob, utolso.fajlnev);
+});
+$('#keszMegnyitGomb').addEventListener('click', () => { if (utolso) megnyit(utolso.blob); });
+$('#keszVisszaGomb').addEventListener('click', () => {
+  if (!utolso || !utolso.elozoMenny) return;
+  valasztas.menny = Object.assign({}, utolso.elozoMenny); valasztasIgazit();
+  keszModBezar(); listaArakFrissit(); osszegFrissit();
+  uzenet('A mennyiségek visszaálltak.');
+});
+$('#keszUjGomb').addEventListener('click', () => { keszModBezar(); osszegFrissit(); });
+
+$('#letoltGomb').addEventListener('click', e => pdfMuvelet('letoltes', e.currentTarget));
+$('#megosztGomb').addEventListener('click', e => pdfMuvelet('megosztas', e.currentTarget));
+$('#elonezetGomb').addEventListener('click', () => elonezet());
+
+/* ---------- előnézet (pdf.js, a tényleges PDF-ből) ---------- */
+async function elonezet() {
+  const a = pdfBemenet();
+  if (!a.ok) return validacioHiba(a);
+  orvosHibaTorol();
+  const keret = el('div', { class: 'elonezet-keret' }, el('div', { class: 'elonezet-allapot' }, el('span', { class: 'porgo', 'aria-hidden': 'true' }), el('span', { text: 'Előnézet készül…' })));
+  const megjegyzes = el('p', { class: 'halvany', text: `A sorszám (${a.b.sorszam}) a letöltéskor vagy megosztáskor válik véglegessé.` });
+  const tartalom = el('div', { style: 'display:grid;gap:10px' }, keret, megjegyzes);
+  const gombok = [{ szoveg: 'PDF letöltése', ikon: 'letolt', tipus: megosztasTamogatott ? 'masod' : 'fo', ertek: null, kattintas: () => { pdfMuvelet('letoltes', null); } }];
+  if (megosztasTamogatott) gombok.push({ szoveg: 'Megosztás', ikon: 'megoszt', tipus: 'fo', ertek: null, kattintas: () => { pdfMuvelet('megosztas', null); } });
+  if (IOS && megosztasTamogatott) gombok.reverse();
+  parbeszed({ cim: 'Előnézet', leiras: `${cimzettNev(a.b.orvos)} · ${a.b.sorok.length}${NBSP}tétel · ${ft(a.b.osszeg)}`, tartalom, gombok, szeles: true, bezaroGomb: true });
+  try {
+    const kesz = await generalas(a.b);
+    if (!dlg.open || !keret.isConnected) return;
+    if (kesz.tulcsordul) { keret.innerHTML = ''; keret.append(el('div', { class: 'hibadoboz', text: tulcsordulasSzoveg(kesz) })); return; }
+    await pdfRajzol(kesz.blob, keret);
+  } catch (e) {
+    if (!dlg.open || !keret.isConnected) return;
+    keret.innerHTML = '';
+    const csakElonezet = e instanceof OfflineHiba && (e.kulcs === 'pdfjs' || e.kulcs === 'pdfjsWorker');
+    keret.append(el('div', { class: csakElonezet ? 'figyelmeztetes' : 'hibadoboz', text: csakElonezet ? 'Az előnézethez szükséges fájl még nincs letöltve erre az eszközre. Csatlakozz egyszer az internethez; a PDF-et előnézet nélkül is letöltheted.' : hibaSzoveg(e) }));
+  }
+}
+async function pdfRajzol(blob, keret) {
+  await szkript('pdfjsWorker');                    // a fő szálon futó feldolgozó: nem kell külön Worker-fájl
+  const pdfjs = await szkript('pdfjs');
+  const adatok = new Uint8Array(await blob.arrayBuffer());
+  const doc = await pdfjs.getDocument({ data: adatok, isEvalSupported: false }).promise;
+  try {
+    const lap = await doc.getPage(1);
+    const szel = Math.max(240, keret.clientWidth - 20);
+    const alap = lap.getViewport({ scale: 1 });
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const nezet = lap.getViewport({ scale: (szel / alap.width) * dpr * 1.25 });
+    const cv = el('canvas', { role: 'img', 'aria-label': 'A PDF árlista előnézete' });
+    cv.width = Math.floor(nezet.width); cv.height = Math.floor(nezet.height);
+    await lap.render({ canvasContext: cv.getContext('2d'), viewport: nezet }).promise;
+    if (!keret.isConnected) return;
+    keret.innerHTML = ''; keret.append(cv);
+  } finally { doc.destroy(); }
+}
+
+/* ======================================================================
+   Árak nézet
+   ====================================================================== */
+let mentveIdozito = null;
+function mentveJelez(siker = true) {
+  const p = $('#mentveJelzo');
+  p.textContent = siker ? 'Mentve ezen az eszközön.' : 'Nem sikerült menteni ezen az eszközön.';
+  clearTimeout(mentveIdozito); mentveIdozito = setTimeout(() => { p.textContent = ''; }, 2500);
+}
+const arFormaz = v => (v == null ? '' : szam(v));
+function arErtelmez(s) {
+  let t = String(s).normalize('NFKC').replace(/\s+/g, '').replace(/(ft|huf|forint)\.?$/i, '');
+  if (t === '') return { ures: true };
+  if (/^\d{1,3}([.,]\d{3})+$/.test(t)) t = t.replace(/[.,]/g, '');   // ezres tagolás (forintban nincs 3 tizedesjegy)
+  else t = t.replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(t)) return { hibas: true };
+  const v = parseFloat(t);
+  if (!Number.isFinite(v)) return { hibas: true };
+  if (v > MAX_AR) return { tul: true };
+  return { ertek: kerekit(v) };
+}
+function arTablaRajzol() {
+  const t = $('#arTabla'); t.innerHTML = '';
+  const fejSor = el('tr', null, el('th', { scope: 'col', class: 'sarok' }, el('span', { text: 'Tétel' })));
+  for (const o of adat.orvosok) {
+    fejSor.append(el('th', { scope: 'col' }, el('button', { type: 'button', class: 'fej-gomb', dataset: { orvos: o.id }, 'aria-label': `${o.nev}: átnevezés, áthelyezés vagy törlés`, html: `<span>${esc(o.nev)}</span>${ikon('ceruza')}` })));
+  }
+  t.append(el('thead', null, fejSor));
+  const tb = el('tbody');
+  for (const tt of adat.tetelek) {
+    const sor = el('tr', null, el('th', { scope: 'row' }, el('button', { type: 'button', class: 'sor-gomb', dataset: { tetel: tt.id }, 'aria-label': `${tt.nev}: átnevezés, áthelyezés vagy törlés`, html: `<span>${esc(tt.nev)}</span>${ikon('ceruza')}` })));
+    for (const o of adat.orvosok) {
+      sor.append(el('td', null, el('input', {
+        class: 'ar-mezo', type: 'text', inputmode: 'decimal', autocomplete: 'off', enterkeyhint: 'next', placeholder: '—',
+        'aria-label': `${tt.nev} ára, ${o.nev}`, dataset: { t: tt.id, o: o.id }, value: arFormaz(arOf(tt.id, o.id))
+      })));
+    }
+    tb.append(sor);
+  }
+  if (!adat.tetelek.length || !adat.orvosok.length) {
+    tb.append(el('tr', null, el('td', { colspan: String(adat.orvosok.length + 1), style: 'padding:16px;color:var(--masodlagos);text-align:left', text: !adat.orvosok.length ? 'Még nincs orvos. Vegyél fel egyet az „Új orvos” gombbal.' : 'Még nincs tétel. Vegyél fel egyet az „Új tétel” gombbal.' })));
+  }
+  t.append(tb);
+}
+const arTabla = $('#arTabla');
+let arGepelesIdozito = null;
+arTabla.addEventListener('focusin', e => {
+  const i = e.target; if (!i.classList.contains('ar-mezo')) return;
+  const v = arOf(i.dataset.t, i.dataset.o);
+  i.value = v == null ? '' : String(v).replace('.', ',');
+  setTimeout(() => { try { i.setSelectionRange(0, i.value.length); } catch (er) { /* nincs */ } }, 0);
+});
+arTabla.addEventListener('input', e => {        // gépelés közben csak az érvényes értéket mentjük; hibát a mező elhagyásakor jelzünk
+  const i = e.target; if (!i.classList.contains('ar-mezo')) return;
+  clearTimeout(arGepelesIdozito);
+  arGepelesIdozito = setTimeout(() => { if (document.activeElement === i) arMezoMent(i, { csendes: true }); }, 500);
+});
+arTabla.addEventListener('focusout', e => {
+  const i = e.target; if (!i.classList.contains('ar-mezo')) return;
+  clearTimeout(arGepelesIdozito);
+  arMezoMent(i); i.value = arFormaz(arOf(i.dataset.t, i.dataset.o));
+});
+arTabla.addEventListener('keydown', e => {
+  const i = e.target; if (!i.classList.contains('ar-mezo') || e.key !== 'Enter') return;
+  e.preventDefault();
+  const mezok = $$('.ar-mezo', arTabla); const j = mezok.indexOf(i);
+  if (j >= 0 && j < mezok.length - 1) mezok[j + 1].focus(); else i.blur();
+});
+function fokuszaltArMentese() {                  // ha a lap bezárul vagy háttérbe kerül, a gépelt ár se vesszen el
+  const i = document.activeElement;
+  if (i && i.classList && i.classList.contains('ar-mezo')) arMezoMent(i, { csendes: true });
+}
+window.addEventListener('pagehide', fokuszaltArMentese);
+document.addEventListener('visibilitychange', () => { if (document.hidden) fokuszaltArMentese(); });
+function arMezoMent(i, { csendes = false } = {}) {
+  const { t, o } = i.dataset; const tt = tetelById(t), oo = orvosById(o); if (!tt || !oo) return;
+  const r = arErtelmez(i.value);
+  if (r.hibas || r.tul) {
+    if (!csendes) uzenet(r.tul ? `${tt.nev} · ${oo.nev}: az ár legfeljebb ${ft(MAX_AR)} lehet. Az ár nem változott.` : `${tt.nev} · ${oo.nev}: az ár csak szám lehet (például 12${NBSP}500). Az ár nem változott.`, { hiba: true });
+    return;
+  }
+  const regi = arOf(t, o); const uj = r.ures ? null : r.ertek;
+  if (regi === uj) return;
+  if (!adat.arak[t]) adat.arak[t] = {};
+  if (uj == null) delete adat.arak[t][o]; else adat.arak[t][o] = uj;
+  mentveJelez(mentAdatok()); arakValtoztak(false);
+}
+function arakValtoztak(szerkezet) {
+  valasztasIgazit();
+  if (szerkezet) { orvosValasztoRajzol(); listaRajzol(); }
+  else listaArakFrissit();
+  elokeszitett = null; keszModBezar(); osszegFrissit();
+}
+function arTablaUjra(fokuszSzelektor) {         // újrarajzolás, a fókusz megtartásával
+  arTablaRajzol();
+  if (fokuszSzelektor) { const f = $(fokuszSzelektor, arTabla); if (f) f.focus({ preventScroll: false }); }
+}
+
+function nevMezo(cimke, ertek) {
+  const inp = el('input', { id: 'nevMezo', type: 'text', value: ertek, autocomplete: 'off', maxlength: '120', enterkeyhint: 'done' });
+  const hiba = el('p', { class: 'mezo-hiba', hidden: true });
+  const doboz = el('div', { class: 'mezo' }, el('label', { for: 'nevMezo', text: cimke }), inp, hiba);
+  const ervenyes = ellenoriz => {
+    const v = inp.value.normalize('NFC').trim().replace(/\s+/g, ' ');
+    const h = !v ? 'Adj meg egy nevet.' : ellenoriz(v);
+    if (h) { hiba.innerHTML = ikon('figyelem') + `<span>${esc(h)}</span>`; hiba.hidden = false; inp.focus(); return null; }
+    return v;
+  };
+  return { inp, doboz, ervenyes };
+}
+const nevFoglalt = (tomb, nev, kiveve) => tomb.some(x => x.id !== kiveve && norm(x.nev) === norm(nev));
+
+async function ujElem(fajta) {
+  const tetel = fajta === 'tetel';
+  const elotag = String(C.cimzettElotag || '').trim();
+  const cimke = tetel ? 'Megnevezés' : (elotag ? `Név (a PDF-en „${elotag}” előtaggal jelenik meg)` : 'Név');
+  const m = nevMezo(cimke, '');
+  const ell = v => nevFoglalt(tetel ? adat.tetelek : adat.orvosok, v) ? `Már van ilyen nevű ${tetel ? 'tétel' : 'orvos'}.` : null;
+  m.inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = m.ervenyes(ell); if (v) dlgBezar(v); } });
+  const nev = await parbeszed({
+    cim: tetel ? 'Új tétel' : 'Új orvos', tartalom: m.doboz, fokusz: m.inp,
+    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Hozzáadás', tipus: 'fo', kattintas: () => { const v = m.ervenyes(ell); if (v) dlgBezar(v); return false; } }]
+  });
+  if (!nev) return;
+  const id = uid(tetel ? 't' : 'o');
+  if (tetel) { adat.tetelek.push({ id, nev }); adat.arak[id] = {}; } else adat.orvosok.push({ id, nev });
+  mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
+  const elso = $(tetel ? `.ar-mezo[data-t="${id}"]` : `.ar-mezo[data-o="${id}"]`);
+  if (elso) { elso.scrollIntoView({ block: 'center', inline: 'center' }); elso.focus({ preventScroll: true }); }
+}
+$('#ujTetelGomb').addEventListener('click', () => ujElem('tetel'));
+$('#ujOrvosGomb').addEventListener('click', () => ujElem('orvos'));
+arTabla.addEventListener('click', e => {
+  const tb = e.target.closest('.sor-gomb'); const ob = e.target.closest('.fej-gomb');
+  if (tb) elemSzerkeszt('tetel', tb.dataset.tetel);
+  else if (ob) elemSzerkeszt('orvos', ob.dataset.orvos);
+});
+async function elemSzerkeszt(fajta, id) {
+  const tetel = fajta === 'tetel';
+  const tomb = () => (tetel ? adat.tetelek : adat.orvosok);
+  const x = tomb().find(y => y.id === id); if (!x) return;
+  const fajtaNev = tetel ? 'tétel' : 'orvos';
+  const gombSzelektor = tetel ? `.sor-gomb[data-tetel="${id}"]` : `.fej-gomb[data-orvos="${id}"]`;
+  const m = nevMezo(tetel ? 'Megnevezés' : 'Név', x.nev);
+  const ell = v => nevFoglalt(tomb(), v, id) ? `Már van ilyen nevű ${fajtaNev}.` : null;
+  // áthelyezés: azonnal történik, a párbeszédablak nyitva marad
+  const elore = el('button', { type: 'button', class: 'gomb gomb-masod', html: gombTartalom(tetel ? 'fel' : 'balra', tetel ? 'Feljebb' : 'Balra') });
+  const hatra = el('button', { type: 'button', class: 'gomb gomb-masod', html: gombTartalom(tetel ? 'le' : 'jobbra', tetel ? 'Lejjebb' : 'Jobbra') });
+  const hely = el('p', { class: 'halvany' });
+  const helyFrissit = () => {
+    const t = tomb(); const i = t.findIndex(y => y.id === id);
+    elore.disabled = i <= 0; hatra.disabled = i < 0 || i >= t.length - 1;
+    hely.textContent = `Hely a listában: ${i + 1} / ${t.length}`;
+  };
+  const mozgat = d => {
+    const t = tomb(); const i = t.findIndex(y => y.id === id); const j = i + d;
+    if (i < 0 || j < 0 || j >= t.length) return;
+    [t[i], t[j]] = [t[j], t[i]];
+    mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true); helyFrissit();
+  };
+  elore.addEventListener('click', () => mozgat(-1)); hatra.addEventListener('click', () => mozgat(1));
+  const torles = el('button', { type: 'button', class: 'gomb-link veszely', text: tetel ? 'Tétel törlése' : 'Orvos törlése' });
+  torles.addEventListener('click', () => dlgBezar({ mod: 'torol' }));
+  const tartalom = el('div', { style: 'display:grid;gap:16px' }, m.doboz);
+  if (tomb().length > 1) tartalom.append(el('div', { class: 'mozgato' }, hely, elore, hatra));
+  tartalom.append(el('div', null, torles));
+  helyFrissit();
+  m.inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = m.ervenyes(ell); if (v) dlgBezar({ mod: 'ment', nev: v }); } });
+  const r = await parbeszed({
+    cim: tetel ? 'Tétel szerkesztése' : 'Orvos szerkesztése', tartalom, fokusz: m.inp,
+    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Mentés', tipus: 'fo', kattintas: () => { const v = m.ervenyes(ell); if (v) dlgBezar({ mod: 'ment', nev: v }); return false; } }]
+  });
+  const most = tomb().find(y => y.id === id);   // közben (pl. másik lapon) változhatott
+  if (!r || !most) { arTablaUjra(gombSzelektor); return; }
+  if (r.mod === 'ment') {
+    if (r.nev !== most.nev) { most.nev = r.nev; mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true); }
+    arTablaUjra(gombSzelektor);
+  } else if (r.mod === 'torol') {
+    const db = tetel ? adat.orvosok.filter(o => arOf(id, o.id) != null).length : adat.tetelek.filter(t => arOf(t.id, id) != null).length;
+    const ok = await megerosites(`${tetel ? 'Tétel' : 'Orvos'} törlése`,
+      `Biztosan törlöd ${nevelo(most.nev)} „${most.nev}” ${tetel ? 'tételt' : 'orvost'}?${db ? ` A hozzá tartozó ${db} ár is törlődik.` : ''}`, 'Törlés', true);
+    if (!ok) { arTablaUjra(gombSzelektor); return; }
+    const t = tomb(); const i = t.findIndex(y => y.id === id); if (i < 0) return;
+    t.splice(i, 1);
+    if (tetel) delete adat.arak[id]; else for (const tk of Object.keys(adat.arak)) delete adat.arak[tk][id];
+    mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
+    $(tetel ? '#ujTetelGomb' : '#ujOrvosGomb').focus({ preventScroll: true });
+  }
+}
+
+/* ---------- Excel-import ---------- */
+const terkep = () => Object.create(null);       // név szerinti árak: prototípus nélküli objektum
+function nevesForma(a) {
+  return {
+    orvosok: a.orvosok.map(o => o.nev),
+    tetelek: a.tetelek.map(t => { const arak = terkep(); for (const o of a.orvosok) { const v = arOf(t.id, o.id); if (v != null) arak[o.nev] = v; } return { nev: t.nev, arak }; })
+  };
+}
+function nevesbolAdat(n) {
+  const regiO = new Map(adat.orvosok.map(o => [o.nev, o.id]));
+  const regiT = new Map(adat.tetelek.map(t => [t.nev, t.id]));
+  const orvosok = n.orvosok.map(nev => ({ id: regiO.get(nev) || uid('o'), nev }));
+  const oMap = new Map(orvosok.map(o => [o.nev, o.id]));
+  const tetelek = []; const arak = {};
+  for (const t of n.tetelek) {
+    const id = regiT.get(t.nev) || uid('t');
+    tetelek.push({ id, nev: t.nev }); arak[id] = {};
+    for (const onev of Object.keys(t.arak || {})) { const v = t.arak[onev]; if (oMap.has(onev) && ervenyesAr(v)) arak[id][oMap.get(onev)] = v; }
+  }
+  return { formatum: 1, orvosok, tetelek, arak, modositva: null };
+}
+function osszevet(regi, uj) {
+  const rO = new Set(regi.orvosok), uO = new Set(uj.orvosok);
+  const rT = new Map(regi.tetelek.map(t => [t.nev, t])), uT = new Map(uj.tetelek.map(t => [t.nev, t]));
+  const ujOrvos = uj.orvosok.filter(n => !rO.has(n)), torlodoOrvos = regi.orvosok.filter(n => !uO.has(n));
+  const ujTetel = uj.tetelek.filter(t => !rT.has(t.nev)).map(t => t.nev), torlodoTetel = regi.tetelek.filter(t => !uT.has(t.nev)).map(t => t.nev);
+  const valtozas = [];
+  const ar = (t, o) => (Object.prototype.hasOwnProperty.call(t.arak, o) ? t.arak[o] : null);
+  for (const t of uj.tetelek) {
+    const r = rT.get(t.nev); if (!r) continue;
+    for (const o of uj.orvosok) {
+      if (!rO.has(o)) continue;
+      const a = ar(r, o), b = ar(t, o);
+      if (a !== b) valtozas.push({ tetel: t.nev, orvos: o, regi: a, uj: b });
+    }
+  }
+  const sorrend = JSON.stringify(regi.orvosok.filter(n => uO.has(n))) !== JSON.stringify(uj.orvosok.filter(n => rO.has(n))) ||
+    JSON.stringify(regi.tetelek.map(t => t.nev).filter(n => uT.has(n))) !== JSON.stringify(uj.tetelek.map(t => t.nev).filter(n => rT.has(n)));
+  const semmi = !ujOrvos.length && !torlodoOrvos.length && !ujTetel.length && !torlodoTetel.length && !valtozas.length && !sorrend;
+  return { ujOrvos, torlodoOrvos, ujTetel, torlodoTetel, valtozas, sorrend, semmi };
+}
+class FelhasznaloiHiba extends Error {}
+const F = s => new FelhasznaloiHiba(s);
+
+function fajlBajtok(fajl) {
+  if (fajl.arrayBuffer) return fajl.arrayBuffer();
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsArrayBuffer(fajl); });
+}
+const SZERKEZET = 'Az „Adatbázis” lap 1. sorában (B1-től jobbra) legyenek az orvosok, az A oszlopban (A2-től lefelé) a tételek.';
+async function excelErtelmez(fajl) {
+  if (fajl.size > 15 * 1024 * 1024) throw F('A fájl nagyobb 15 MB-nál. Válaszd az árakat tartalmazó Excel-fájlt.');
+  const buf = await fajlBajtok(fajl);
+  const b = new Uint8Array(buf.slice(0, 8));
+  const zip = b[0] === 0x50 && b[1] === 0x4B; const ole = b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0;
+  if (!zip && !ole) throw F('Ez a fájl nem Excel-munkafüzet. Válassz .xlsx vagy .xlsm fájlt.');
+  const XLSX = await szkript('xlsx');
+  let wb;
+  try { wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellHTML: false, cellStyles: false, cellDates: false, bookVBA: false, sheetStubs: true }); }
+  catch (e) {
+    if (/password|encrypt/i.test(String(e && e.message))) throw F('A munkafüzet jelszóval védett. Mentsd el jelszó nélkül, majd töltsd be újra.');
+    throw F('Ez a fájl nem olvasható Excel-munkafüzetként. Válassz .xlsx vagy .xlsm fájlt.');
+  }
+  const lapNev = wb.SheetNames.find(n => n === 'Adatbázis') || wb.SheetNames.find(n => norm(n) === 'adatbazis');
+  if (!lapNev) throw F(`A munkafüzetben nincs „Adatbázis” nevű lap (a lapok: ${wb.SheetNames.map(n => n.normalize('NFC').trim()).join(', ') || 'nincs'}). Nevezd át az árakat tartalmazó lapot „Adatbázis”-ra, majd töltsd be újra.`);
+  const ws = wb.Sheets[lapNev];
+  if (!ws || !ws['!ref']) throw F(`Az „Adatbázis” lap üres. ${SZERKEZET} Utána töltsd be újra.`);
+  const rng = { e: { r: 0, c: 0 } };            // a valódi utolsó cellaig (a <dimension> lehet túl nagy)
+  for (const kulcs of Object.keys(ws)) {
+    if (kulcs.charAt(0) === '!') continue;
+    const a = XLSX.utils.decode_cell(kulcs);
+    if (a.r > rng.e.r) rng.e.r = a.r; if (a.c > rng.e.c) rng.e.c = a.c;
+  }
+  const cim = (r, c) => XLSX.utils.encode_cell({ r, c });
+  const cella = (r, c) => ws[cim(r, c)];
+  const szoveg = c => (c && c.v != null && c.t !== 'z' && c.t !== 'e' ? String(c.v).normalize('NFC').replace(/\s+/g, ' ').trim() : '');
+  const hibak = [], figy = [];
+  const oszlopok = [];
+  for (let c = 1; c <= rng.e.c; c++) {
+    const nev = szoveg(cella(0, c));
+    if (!nev) {
+      let van = false; for (let r = 1; r <= rng.e.r; r++) if (szoveg(cella(r, c))) { van = true; break; }
+      const betu = XLSX.utils.encode_col(c);
+      if (van) figy.push(`${Nevelo(betu)} ${betu} oszlopban vannak árak, de az 1. sorban nincs orvosnév, ezért kimarad.`);
+      continue;
+    }
+    const dup = oszlopok.find(o => norm(o.nev) === norm(nev));
+    if (dup) hibak.push(`„${nev}” kétszer szerepel az 1. sorban (${dup.cim} és ${cim(0, c)}).`);
+    oszlopok.push({ c, nev, cim: cim(0, c) });
+  }
+  if (!oszlopok.length) throw F(`Az „Adatbázis” lap 1. sorában (B1-től jobbra) nincsenek orvosnevek. ${SZERKEZET} Utána töltsd be újra.`);
+  const tetelek = [];
+  for (let r = 1; r <= rng.e.r; r++) {
+    const nev = szoveg(cella(r, 0));
+    if (!nev) {
+      if (oszlopok.some(o => szoveg(cella(r, o.c)))) figy.push(`${Nevelo(String(r + 1))} ${r + 1}. sorban vannak árak, de az A oszlopban nincs tételnév, ezért kimarad.`);
+      continue;
+    }
+    const dup = tetelek.find(t => norm(t.nev) === norm(nev));
+    if (dup) hibak.push(`„${nev}” kétszer szerepel az A oszlopban (${dup.cim} és ${cim(r, 0)}).`);
+    const arak = terkep();
+    for (const o of oszlopok) {
+      const c = cella(r, o.c);
+      const hely = cim(r, o.c);
+      if (c && c.t === 'z' && c.f) { hibak.push(`${hely}: a képletnek nincs elmentett eredménye. Nyisd meg a fájlt Excelben, mentsd el, és töltsd be újra.`); continue; }
+      if (!c || c.v == null || c.v === '' || c.t === 'z') continue;
+      if (c.t === 'n') {
+        if (!Number.isFinite(c.v) || c.v < 0) hibak.push(`${hely}: negatív vagy érvénytelen ár (${c.v}).`);
+        else if (c.v > MAX_AR) hibak.push(`${hely}: túl nagy ár (${szam(c.v)}); legfeljebb ${ft(MAX_AR)} lehet.`);
+        else arak[o.nev] = kerekit(c.v);
+        continue;
+      }
+      if (c.t === 's') {
+        const p = arErtelmez(c.v);
+        if (p.ures) continue;
+        if (p.hibas) hibak.push(`${hely}: „${String(c.v).trim()}” nem szám.`);
+        else if (p.tul) hibak.push(`${hely}: túl nagy ár; legfeljebb ${ft(MAX_AR)} lehet.`);
+        else arak[o.nev] = p.ertek;
+        continue;
+      }
+      if (c.t === 'e') { hibak.push(`${hely}: a cellában hibaérték van (${c.w || '#HIBA'}).`); continue; }
+      hibak.push(`${hely}: nem értelmezhető érték.`);
+    }
+    tetelek.push({ nev, cim: cim(r, 0), arak });
+  }
+  if (!tetelek.length) throw F(`Az „Adatbázis” lap A oszlopában (A2-től lefelé) nincsenek tételnevek. ${SZERKEZET} Utána töltsd be újra.`);
+  if (hibak.length) {
+    const e = F(`Az „Adatbázis” lapon ${hibak.length} hiba van, ezért az árak nem változtak. Javítsd ezeket az Excelben, majd töltsd be újra.`);
+    e.reszletek = hibak; throw e;
+  }
+  return { lap: lapNev.normalize('NFC').trim(), figy, uj: { orvosok: oszlopok.map(o => o.nev), tetelek: tetelek.map(t => ({ nev: t.nev, arak: t.arak })) } };
+}
+function cimkeLista(nevek, osztaly) {
+  const MAX = 12;
+  const doboz = el('div', { class: 'cimkek' }, nevek.slice(0, MAX).map(n => el('span', { class: 'cimke ' + osztaly, text: n })));
+  if (nevek.length > MAX) {
+    const tobb = el('button', { type: 'button', class: 'gomb-link', text: `…és még ${nevek.length - MAX}` });
+    tobb.addEventListener('click', () => { tobb.remove(); doboz.append(...nevek.slice(MAX).map(n => el('span', { class: 'cimke ' + osztaly, text: n }))); });
+    doboz.append(tobb);
+  }
+  return doboz;
+}
+function valtozasParbeszed({ cim, forras, uj, figy = [], egyebValtozas = '', igenSzoveg = 'Árak felülírása' }) {
+  const d = osszevet(nevesForma(adat), uj);
+  const torlodik = d.torlodoOrvos.length + d.torlodoTetel.length;
+  const t = el('div', { style: 'display:grid;gap:14px' });
+  t.append(el('p', { class: 'halvany', text: forras }));
+  const osszegzo = el('div', { class: 'cimkek' },
+    el('span', { class: 'cimke', text: `${uj.orvosok.length}${NBSP}orvos` }),
+    el('span', { class: 'cimke', text: `${uj.tetelek.length}${NBSP}tétel` }));
+  if (d.torlodoOrvos.length) osszegzo.append(el('span', { class: 'cimke torol', text: `${d.torlodoOrvos.length}${NBSP}orvos törlődik` }));
+  if (d.torlodoTetel.length) osszegzo.append(el('span', { class: 'cimke torol', text: `${d.torlodoTetel.length}${NBSP}tétel törlődik` }));
+  osszegzo.append(el('span', { class: 'cimke' + (d.valtozas.length ? ' valt' : ''), text: d.valtozas.length ? `${d.valtozas.length}${NBSP}ár változik` : 'Nincs árváltozás' }));
+  if (d.ujOrvos.length) osszegzo.append(el('span', { class: 'cimke uj', text: `${d.ujOrvos.length}${NBSP}új orvos` }));
+  if (d.ujTetel.length) osszegzo.append(el('span', { class: 'cimke uj', text: `${d.ujTetel.length}${NBSP}új tétel` }));
+  t.append(osszegzo);
+  const resz = (cimke, nevek, osztaly) => (nevek.length ? el('div', { style: 'display:grid;gap:6px' }, el('p', { class: 'alcim', text: `${cimke} (${nevek.length})` }), cimkeLista(nevek, osztaly)) : null);
+  t.append(...[resz('Törlődő orvos', d.torlodoOrvos, 'torol'), resz('Törlődő tétel', d.torlodoTetel, 'torol')].filter(Boolean));
+  if (d.valtozas.length) {
+    const ul = el('ul', { class: 'lista-valtozas' });
+    for (const v of d.valtozas.slice(0, 200)) {
+      ul.append(el('li', null, el('span', { text: `${v.tetel} · ${v.orvos}` }),
+        el('span', { class: 'szam' }, el('span', { class: 'regi', text: v.regi == null ? 'nincs ár' : ft(v.regi) }), ' → ', el('span', { class: 'uj', text: v.uj == null ? 'nincs ár' : ft(v.uj) }))));
+    }
+    t.append(el('div', { style: 'display:grid;gap:6px' }, el('p', { class: 'alcim', text: 'Változó árak' }), ul));
+    if (d.valtozas.length > 200) t.append(el('p', { class: 'halvany', text: `…és még ${d.valtozas.length - 200} változás.` }));
+  }
+  t.append(...[resz('Új orvos', d.ujOrvos, 'uj'), resz('Új tétel', d.ujTetel, 'uj')].filter(Boolean));
+  if (d.sorrend && !d.valtozas.length && !d.ujTetel.length && !d.torlodoTetel.length && !d.ujOrvos.length && !d.torlodoOrvos.length) t.append(el('p', { text: 'A sorrend változik.' }));
+  if (egyebValtozas) t.append(el('p', { text: egyebValtozas }));
+  if (figy.length) t.append(el('div', { class: 'figyelmeztetes' }, el('strong', { text: 'Figyelem' }), ...figy.map(f => el('span', { text: f }))));
+  if (d.semmi && !egyebValtozas) {
+    t.append(el('div', { class: 'allapot-sor jo', html: ikon('pipa') + '<span>Az árak megegyeznek a jelenlegiekkel; nincs mit frissíteni.</span>' }));
+    return parbeszed({ cim, tartalom: t, gombok: [{ szoveg: 'Bezárás', ertek: false, tipus: 'fo' }], szeles: true });
+  }
+  const igen = torlodik
+    ? { szoveg: `Felülírás (${torlodik}${NBSP}törlődik)`, ertek: true, tipus: 'veszely' }
+    : { szoveg: igenSzoveg, ertek: true, tipus: 'fo' };
+  return parbeszed({ cim, tartalom: t, szeles: true, gombok: [{ szoveg: 'Mégse', ertek: false, tipus: 'masod' }, igen] });
+}
+function adatokFelulir(ujNeves, forrasNev) {
+  ir(KULCS.elozo, { mentve: new Date().toISOString(), forras: forrasNev, adat, valasztas: JSON.parse(JSON.stringify(valasztas)) });
+  adat = ellenorzottAdatok(nevesbolAdat(ujNeves)) || adat;
+  mentAdatok(); arTablaRajzol(); arakValtoztak(true);
+  $('#importVisszaGomb').hidden = false;
+  tartosTarolasKeres(true);
+  uzenet(`Árak frissítve: ${adat.orvosok.length}${NBSP}orvos, ${adat.tetelek.length}${NBSP}tétel.`, { gomb: 'Visszavonás', ido: 8000, kattintas: importVisszaallit });
+}
+function elozoAllapot() { const e = objektum(olvas(KULCS.elozo, null)); const a = ellenorzottAdatok(e.adat); return a ? { e, a } : null; }
+function importVisszaallit() {
+  const v = elozoAllapot();
+  if (!v) { uzenet('Nincs visszaállítható korábbi állapot.', { hiba: true }); return; }
+  adat = v.a; mentAdatok(); torolKulcs(KULCS.elozo);
+  const regiV = objektum(v.e.valasztas);
+  for (const [k, n] of Object.entries(objektum(regiV.menny))) if (tetelById(k) && !valasztas.menny[k] && Number.isInteger(n) && n > 0 && n <= MAX_MENNY) valasztas.menny[k] = n;
+  if (!valasztas.orvosId && orvosById(regiV.orvosId)) valasztas.orvosId = regiV.orvosId;
+  arTablaRajzol(); arakValtoztak(true); $('#importVisszaGomb').hidden = true;
+  uzenet('A betöltés előtti árak visszaálltak.');
+}
+function folyamatbanJelzes(cim) {
+  parbeszed({ cim, tartalom: el('div', { class: 'elonezet-allapot' }, el('span', { class: 'porgo', 'aria-hidden': 'true' }), el('span', { text: 'Egy pillanat…' })), gombok: [] });
+}
+$('#excelGomb').addEventListener('click', () => { $('#excelFajl').value = ''; $('#excelFajl').click(); });
+$('#excelFajl').addEventListener('change', async e => {
+  const fajl = e.target.files && e.target.files[0]; if (!fajl) return;
+  folyamatbanJelzes('Excel beolvasása');
+  try {
+    const r = await excelErtelmez(fajl);
+    const ok = await valtozasParbeszed({ cim: 'Excel-import előnézete', forras: `${fajl.name} · „${r.lap}” lap`, uj: r.uj, figy: r.figy });
+    if (ok) adatokFelulir(r.uj, fajl.name);
+  } catch (err) {
+    const tobb = err.reszletek && err.reszletek.length > 30 ? el('p', { class: 'halvany', text: `…és még ${err.reszletek.length - 30} hiba.` }) : null;
+    const tartalom = err.reszletek ? el('div', { style: 'display:grid;gap:8px' }, el('ul', { class: 'lista-valtozas' }, err.reszletek.slice(0, 30).map(h => el('li', { text: h }))), tobb) : null;
+    await parbeszed({ cim: 'Az Excel-fájl nem tölthető be', leiras: err instanceof FelhasznaloiHiba || err instanceof AppHiba ? (err instanceof OfflineHiba ? hibaSzoveg(err) : err.message) : 'A fájl beolvasása nem sikerült. Ellenőrizd, hogy a megfelelő Excel-fájlt választottad, majd próbáld újra.', tartalom, gombok: [{ szoveg: 'Rendben', ertek: true, tipus: 'fo' }] });
+  } finally { e.target.value = ''; }
+});
+
+/* ---------- JSON mentés és visszatöltés ---------- */
+$('#jsonMentesGomb').addEventListener('click', () => {
+  const n = nevesForma(adat);
+  const tartalom = { alkalmazas: 'dentAl-arlista', formatum: 1, mentve: new Date().toISOString(), cegnev: C.cegnev, orvosok: n.orvosok, tetelek: n.tetelek, beallitasok: beall };
+  letolt(new Blob([JSON.stringify(tartalom, null, 2)], { type: 'application/json' }), `dental_arak_${datumok(new Date()).fajl}.json`);
+  uzenet('A mentés letöltődött. Tedd biztos helyre, például küldd el magadnak e-mailben.');
+});
+$('#jsonBetoltesGomb').addEventListener('click', () => { $('#jsonFajl').value = ''; $('#jsonFajl').click(); });
+$('#jsonFajl').addEventListener('change', async e => {
+  const fajl = e.target.files && e.target.files[0]; if (!fajl) return;
+  try {
+    if (fajl.size > 5 * 1024 * 1024) throw F('A fájl túl nagy egy ármentéshez. Válaszd a „dental_arak_…json” fájlt.');
+    let j;
+    try { j = JSON.parse(new TextDecoder('utf-8').decode(await fajlBajtok(fajl))); }
+    catch (er) { throw F('Ez a fájl nem olvasható ármentésként. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.'); }
+    if (!j || j.alkalmazas !== 'dentAl-arlista' || !Array.isArray(j.orvosok) || !Array.isArray(j.tetelek)) throw F('Ez nem a dentÁl árlista mentése. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.');
+    const figy = [];
+    if (Number(j.formatum) > 1) figy.push('A mentés az alkalmazás újabb változatából származik; betöltés után ellenőrizd az árakat.');
+    const orvosok = [...new Set(j.orvosok.filter(x => typeof x === 'string' && x.trim()).map(x => x.normalize('NFC').trim()))];
+    const lattuk = new Set(); const tetelek = []; let kimaradt = 0;
+    for (const t of j.tetelek) {
+      if (!t || typeof t.nev !== 'string' || !t.nev.trim()) continue;
+      const nev = t.nev.normalize('NFC').trim(); if (lattuk.has(nev)) continue; lattuk.add(nev);
+      const arak = terkep(); const forras = objektum(t.arak);
+      for (const o of orvosok) {
+        if (!Object.prototype.hasOwnProperty.call(forras, o) || forras[o] == null) continue;
+        if (ervenyesAr(forras[o])) arak[o] = forras[o];
+        else { kimaradt++; if (kimaradt <= 5) figy.push(`${nev} · ${o}: „${String(forras[o])}” nem érvényes ár, kimarad.`); }
+      }
+      tetelek.push({ nev, arak });
+    }
+    if (kimaradt > 5) figy.push(`…és még ${kimaradt - 5} érvénytelen ár kimarad.`);
+    if (!orvosok.length || !tetelek.length) throw F('A mentésben nincs orvos vagy tétel, ezért nem tölthető be. Válassz másik mentést.');
+    const ujBeall = {};
+    const jb = objektum(j.beallitasok);
+    if (typeof jb.nullazas === 'boolean') ujBeall.nullazas = jb.nullazas;
+    if (typeof jb.szinesLogo === 'boolean') ujBeall.szinesLogo = jb.szinesLogo;
+    const beallValtozik = ('nullazas' in ujBeall && ujBeall.nullazas !== nullazasBe()) || ('szinesLogo' in ujBeall && ujBeall.szinesLogo !== szinesLogoBe());
+    const mentve = j.mentve && !isNaN(Date.parse(j.mentve)) ? ' · mentve: ' + new Date(j.mentve).toLocaleString('hu-HU') : '';
+    const ok = await valtozasParbeszed({ cim: 'Mentés visszatöltése', forras: `${fajl.name}${mentve}`, uj: { orvosok, tetelek }, figy, igenSzoveg: 'Visszatöltés',
+      egyebValtozas: beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '' });
+    if (ok) {
+      if (beallValtozik) { beall = Object.assign({}, beall, ujBeall); mentBeall(); beallRajzol(); elokeszitett = null; }
+      const d = osszevet(nevesForma(adat), { orvosok, tetelek });
+      if (!d.semmi) adatokFelulir({ orvosok, tetelek }, fajl.name);
+      else uzenet('A beállítások a mentés szerint frissültek.');
+    }
+  } catch (err) {
+    parbeszed({ cim: 'A mentés nem tölthető be', leiras: err instanceof FelhasznaloiHiba ? err.message : 'A fájl beolvasása nem sikerült. Válaszd a „Mentés fájlba” gombbal készült .json fájlt, és próbáld újra.' });
+  } finally { e.target.value = ''; }
+});
+$('#importVisszaGomb').addEventListener('click', async () => {
+  const v = elozoAllapot();
+  if (!v) { $('#importVisszaGomb').hidden = true; uzenet('Nincs visszaállítható korábbi állapot.', { hiba: true }); return; }
+  const mikor = v.e.mentve && !isNaN(Date.parse(v.e.mentve)) ? ' (' + new Date(v.e.mentve).toLocaleString('hu-HU') + ')' : '';
+  const ok = await megerosites('Visszaállítás', `Az árak visszaállnak a legutóbbi betöltés előtti állapotra${mikor}. A mostani árak felülíródnak.`, 'Visszaállítás');
+  if (ok) importVisszaallit();
+});
+
+/* ---------- beállítások ---------- */
+function beallRajzol() {
+  $('#beallNullazas').checked = nullazasBe();
+  $('#beallMono').checked = !szinesLogoBe();
+}
+$('#beallNullazas').addEventListener('change', e => { beall = Object.assign({}, beall, { nullazas: e.target.checked }); mentveJelez(mentBeall()); });
+$('#beallMono').addEventListener('change', e => { beall = Object.assign({}, beall, { szinesLogo: !e.target.checked }); elokeszitett = null; mentveJelez(mentBeall()); });
+
+async function offlineRajzol() {
+  const d = $('#offlineAllapot');
+  const a = await offlineAllapot();
+  if (!a.tarolhato) {
+    d.className = 'allapot-sor var';
+    d.innerHTML = ikon('figyelem') + '<span>Ez a böngésző nem engedi a fájlok tárolását (például privát böngészésben), ezért internet nélkül nem fog működni. Nyisd meg normál böngészőablakban.</span>';
+    return;
+  }
+  const iosTipp = $('#iosTipp');
+  if (iosTipp) iosTipp.hidden = !(IOS && !(window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)));
+  d.className = 'allapot-sor ' + (a.kesz ? 'jo' : 'var');
+  d.innerHTML = a.kesz
+    ? ikon('pipa') + '<span>Offline használatra kész: a PDF-készítéshez, az előnézethez és az Excel-importhoz szükséges fájlok el vannak mentve ezen az eszközön.</span>'
+    : ikon('figyelem') + `<span>Még letöltésre vár: ${esc(a.hianyzik.join(', '))}. Nyisd meg az oldalt internetkapcsolattal; utána offline is működik.</span>`;
+}
+
+/* ======================================================================
+   Nézetváltás (#arak), indulás
+   ====================================================================== */
+let arakbaLepve = false;                          // az Árak a listáról, a gombbal nyílt meg (vissza = history.back)
+function arakMegnyit() { arakbaLepve = true; location.hash = '#arak'; }
+function listaraVissza() {
+  if (location.hash !== '#arak') return;
+  if (arakbaLepve) { arakbaLepve = false; history.back(); return; }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+  nezetBeallit();
+}
+function nezetBeallit() {
+  const arak = location.hash === '#arak';
+  if (!arak) arakbaLepve = false;
+  $('#nezetArlista').hidden = arak; $('#nezetArak').hidden = !arak; $('#sav').hidden = arak;
+  document.body.classList.toggle('nezet-arak-aktiv', arak);
+  const g = $('#nezetGomb');
+  g.innerHTML = arak ? gombTartalom('vissza', 'Árlista') : gombTartalom('arcimke', 'Árak');
+  g.setAttribute('aria-label', arak ? 'Vissza az árlistához' : 'Árak szerkesztése');
+  if (arak) {
+    if (dlg.open) dlgBezar(null);
+    arTablaRajzol(); beallRajzol(); offlineRajzol();
+    $('#importVisszaGomb').hidden = !elozoAllapot();
+  }
+  savMeret();
+  window.scrollTo(0, 0);
+}
+$('#nezetGomb').addEventListener('click', () => { if (location.hash === '#arak') listaraVissza(); else arakMegnyit(); });
+$('#logo').addEventListener('click', e => { e.preventDefault(); if (location.hash === '#arak') listaraVissza(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+window.addEventListener('hashchange', nezetBeallit);
+
+window.addEventListener('storage', e => {             // másik lapon történt változás
+  if (e.key === KULCS.adatok) {
+    const a = ellenorzottAdatok(olvas(KULCS.adatok, null));
+    if (!a) return;
+    if (dlg.open) { dlgBezar(null); uzenet('Az árak egy másik lapon megváltoztak. Nyisd meg újra a szerkesztést.'); }
+    adat = a; arakValtoztak(true);
+    if (location.hash === '#arak' && !(document.activeElement && document.activeElement.classList.contains('ar-mezo'))) arTablaRajzol();
+  } else if (e.key === KULCS.valasztas) {
+    valasztas = betoltValasztas(); orvosValasztoRajzol(); listaArakFrissit(); osszegFrissit();
+  } else if (e.key === KULCS.beall) {
+    beall = objektum(olvas(KULCS.beall, null)); beallRajzol(); elokeszitett = null;
+  }
+});
+let utolsoNap = datumok(new Date()).kulcs;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  const ma = datumok(new Date()).kulcs;
+  if (ma !== utolsoNap) { utolsoNap = ma; elokeszitett = null; }
+  elokeszitesUtemez();
+});
+
+let tartosKert = false;
+function tartosTarolasKeres(mindenkepp = false) {  // kérés a böngészőnek, hogy ne törölje magától az árakat
+  if (tartosKert) return;
+  try {
+    const telepitett = window.matchMedia && matchMedia('(display-mode: standalone)').matches;
+    if (navigator.storage && navigator.storage.persist && (telepitett || mindenkepp)) { tartosKert = true; navigator.storage.persist().catch(() => {}); }
+  } catch (e) { /* nincs */ }
+}
+
+/* ---------- opcionális kiegészítők webes közzétételhez ---------- */
+async function vanFajl(nev) {
+  try { const v = await fetch(nev, { method: 'HEAD', cache: 'no-store' }); return v.ok; } catch (e) { return false; }
+}
+async function szolgaltatasMunkas() {
+  try {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol) || !window.isSecureContext) return;
+    if (navigator.serviceWorker.controller) return;   // már telepítve; a frissítést a böngésző magától keresi
+    if (await vanFajl('sw.js')) await navigator.serviceWorker.register('sw.js');
+  } catch (e) { /* nincs sw.js: az oldal enélkül is működik */ }
+}
+async function manifestBeallit() {
+  try {
+    if (!/^https?:$/.test(location.protocol) || document.querySelector('link[rel="manifest"]')) return;
+    if (await vanFajl('apple-touch-icon.png')) document.querySelector('link[rel="apple-touch-icon"]').href = 'apple-touch-icon.png';
+    const link = document.createElement('link'); link.rel = 'manifest';
+    if (await vanFajl('manifest.webmanifest')) { link.href = 'manifest.webmanifest'; document.head.append(link); return; }
+    const kezdo = location.href.split('#')[0].split('?')[0];
+    const m = {
+      id: kezdo, name: `${C.cegnev} árlista`, short_name: C.cegnev, lang: 'hu', start_url: kezdo, scope: new URL('./', kezdo).href,
+      display: 'standalone', background_color: '#FFFFFF', theme_color: '#FFFFFF',
+      icons: [
+        { src: 'data:image/png;base64,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', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAcrElEQVR42u3de3TW9Z0n8A+XAFJBRATECwIiqHirCtoK4q061HZ0W8Xano7VaWdbt+1Zd6a23W6ns2fntG53d6ad6fVUHe2csVbtcVptFRSQuyAQTEgCIdwC4RYIEBIScts/srq2KubyJHl+v9/r9ZdgkufJ7/fwvJ/f+/e99GtrawsAsqe/QwAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQCAAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQCAAABAAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQCAAABAAAAgAAAQAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQCAAABAAAAgAAAQAAAIAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABAAAAgAAAQBALgx0CMiC8r1Vh+rr8uopjRj6gcljxjk1CADoWQ888ZN9tYfz6il9f+59AoBQAUGP2rhnV769+0+feP7NF13m1CAAoGct3bQhv667+/f/9p/f7bwgAKDHLdlUklfP595rbzrr1FHOCwIAelZtw7HCHVvy5/mMGT7iC7NvdV4QANDjlpXn18f/r99256CBBl8gACCy1f9Mn3j+9VMvdlIQANDj2tralpeX5smTKRgw0L1fBAD0kuJd22vqj+bJk7lvpnu/CACIzPU/Y4aPuH/WR5wRBAD0WgDkywyAb318rnu/CADoJTV1R0urKvPhmVw3ZdrM8y9yRhAA0EsW58fH/4IBA79x251OBwIAes+SjXkRAJ+ffcvYU051OhAA0EtaWluXlvd9AJx56mn3XXuT04EAgN6zbseWhqamPn8a3/7zuwcOGOB0IAAgMtX/3HDBpTMmTnEuEADQq/q8/xlSUODeLwIAetu+I4cq9u3p2+fwhdm3nj5suHOBAIBetaisOPr63u9nP3SDE4EAgMjaFmDu/SIAoA80tTQvryjrwydwy7TL3ftFAEAfWLWlvLmlJfru3u9f/9knnAUEAETWFoD70g0fde8XAQCZC4BzR43+9DWznQIEAPSBbdX7dtUc6KtH/87t9wzo798UAgAy9vF/ziVXXnbORKcAAQDRRwNA+2YLsKGDBv/NnP/g+CMAoG80NB1fvXVTnzz0Azd+9NShJzsFCADoG8s3l7W2tUVf3Pu9e8Ysxx8BAJG1CcDu/SIAoI8tLC3q/Qf92GXT3ftFAEBf2rhnV0390ej1e78P3nq7g48AgMha//OVmz/m3i8CACJrMwAmjxk3d/pMRx4BAH2ptuFY4Y6tvfygf3v7p/r16+fgk1wDHQJS4FB93V/NvrU3H/GMESOnnTnekSfR+rX1xbhpAEIFBIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAABAAAAgAAAQCAAABAAAAgAAAQAAAIAACSYaBDQN56+PfPPrny1UT/Cp+6+rqH5nzCqcQVAHRCW1vbS0Vrk/5bvFS0tq2tzdlEAEAnFO7YcrCuNum/xcG62sIdW5xNBAB0wrwNhX4REACE/ie0QCAACP1PaIFAAJBSLxWvC3UWCAAie/3PvHQFgBYIAQCRtf4ntEAIAMhs/xNaIAQARCb7Hy0QAgA6ZF3q+p/QAiEAoCNS+fE/xdUWAgBC/9ORbNMCIQAgMtX/hBYIAQCZ7X9CC4QAgMhk/6MFQgBAZLP/CS0QAgAy2/+EFggBAJHJ/kcLhACAyGb/E1ogBABktv8JLRACACKT/Y8WCAEAf2Tt9oqM9D/xZgu0TguEAICImJ+9pZLnaYEQAJC1/kcLhACAyGb/E1ogBABEVvsfLRACADLa/2iBEACQ0f4ntEAIAMh4DaIFQgAQme1/MnsDQAuEACD0P1k+AlogBAAKEAcBBACh/9ECgQAg1dZkvv8JLRACgGyar/rQAiEACP2PFkgLhAAg9D+hBQIBQOh/tEAgAAj9jxYIBACh/wktEAgAQv+jBQIBQOh/tEDQcQMdAnrTuh1bct7/TBo9dsTQk9v/u7Gpacv+PfXHGyOBLVDhji2Xj5/kRYIAIJ1eKlrbzZ8wdNDg66ZOu/TsCRNPH3vWyFHjRox859cU79q+sLRoXvHayoPV3X/O544aPXvqxZPHnDn+tNPPGzNuSEFB+9/XNTaU763aVr1v455dr2wo3Fd7uLsHp3idAKA39XPVSW+68X/+1wNHu3gFcNk5E+699qbZUy/u+LcsKy/92aI/vFG5rQsPN2zISXfPmDXn0isnjBrTka8v2rnt+cLVT61a0uWDM/IDwxY89PdeJAgAUuj1bZv/8tEfdu17v3zTbffP+kjXvndhWdE/v/x8xb7dHfz6kwcP+ey1N95z9XUnDx7S2cfaV3v454tefGb1sq491cfu/6qLAAQAKfTd55/uwgfkSaPP+Lvb75l21vhuPvrS8pIXi9YsLC2qa2x41y8YUlBw/QWXXD/1kuumThs8sKA7j1VSVflfnvzF7sM1nf3Gu2fM+vpHP+mlggAgba5/+Js1dUc79S0P3PjRz193S26fxuqt5RX7dlcerC7bvTMiBvTvP3nMuCsnTL6+M+XS+zra2PCNpx9fsmlDp77r9GHD5//N//BSQQAQGe9/Hr7rc7dMuzy5v3JrW9s3n3nixaI1nfquR+//6ge1QIR5AESaxrl3bvzPN2+7K9Hv/hHRv1+/7935F9dOvtCMMAQAmdap+V+fuWb2XdOvTccv/v25900Ze6YAQACQUau3lne8/b/k7HMfvPWO1PzuJw0a9A/3fH7YkJOi4+sCba/wmkEAkJqP/x39VDuwf//v3Xlv/3790vTrjxsx8oEbPxqdmRHmNYMAIHP9z13TZ77r5N6ku3vGrPPGnBFaIAQAof9514//AwZ8bubNaT0OD835ZMdboLVaIAQAkaWFjm+44JLThw1P63G4asLk8aed7iIAAUCGvNzh/mfOJVem+1Dcdtl0q0MjAIgM9T/1HR3/M2PilHQfjY6vZGePMAQAkZ3+Z+oZZ500aFC6j8bkMeM6vsqQFoiwHwCRjf7n/M7MluodJVWVz6xeunpreV1j4wfHT5pz6RU3XHBpN3/mxNFjS6sqOxgAD835RL90jYjFFQCh/4l3WQftlO481vHm5nXbK/51xaIXi9bsqjnQ/SdfebB62JCTPn3N9R+efOHButqXSwoffPKR+x/94dH3WEy0g8YOHxFaIAQAYf7X24wYOjS6us/wU6uW3PFPf/9vK1+trj28emv5t37zr3/1Lz/qTgz8dt1rY08ZcfbIUZNGj/1PN902cMCA9r9fs23z9154ujvH5JShH+ih9TMgVEBE3uz//mJnNoBs7eqglwef/EVNfd0Tn3/wtJOHvfWXz61dOffHD//os1+89OwJ0flVPH+9aunHL58Rb+4PM/IDw/YdOdT+x+cLV3/u2psnjR7btWfbqZ0G5heve2jOJ7yWcAVAJG795yPH6jv+9Q1NTV14lOfWrtx+YP8vPvflt7/7R8TtH7z6O3fc861nf9nU0tzZn7l57+7iXdurDh1s/2P53qoPnTf1I29bmrRo57YuH5aWttaOf3H10SNmhOEKgEjx+J92+7u0qfo/zvv3R+77ylsVzdvddOFlL76x9rm1K++8qnMLi9bU10bE3B8/PGvKRQ1NTYfq6x657ysRUbh9S/vO7weOHunyYantTCi2H0bbA+AKgEhW//NSJzcA2Lx3d2cfperQwZbW1kmj33ONnSvOnbS+cmtnf+yF486JiNqGYy+sf/2VkvXtb/dtbW0NzU1vjebs8pHZX3ukh4ZRgQAgktj/RERpVWVnbwNUHtzf/mb9Xi4Yd3blgerOPvlhQ0760HkXvPXHbdX7bvuH/37z9/9b+280etgpMyZ1fcJa+d6qTn199dEja7Zt9opCABCpHP/TrrG5qX2T3o6bMXHKz+594ARfcNk5Ex///H/uwvN/8Jbb3z4Af2dNdfWbtc+Xb/5Yl7eMrzxYXdtwrEf30gEBQCRo/E93YqOHnDfmjG9//O6CAX96k+yeq6/7WIfX83mnBaXroycn00G4CUwkrf9p90Lh6q/e/PE8+S3uuOKay8dP+s2a5TsPVje1tIw95dQbLrzkmklTo1vzorsSAO0t0BXnnuelhQAg0tf/tNtXe3hFRVk332TfVcW+PQfrat/3y84YcepZp45664/njhr94C235+o57D1yqMvjR+dvKBQACAAirf1PvDnNqicC4JfLF8zfUDj1jLNO8DXrK7d+6YY59/XYjjS/K1wV3RhTa10gBACR1v6n3aKyop54VuNPG93U0vzwXfeOOvndN5wp3rX9Mz/73+eOGtNzR+bZ1cu6/L3te4S5CEAAkNc6O/z/T9Q1Nry+bfOVuX6nm33BxT+Y/9v/+PiPbnyP5TyffX35SYMGzZh4fg8dlsIdW3Yfronu7assAAijgIg87n+6v4r9q2XFOX9iE0aNufOqazfv3f3ka4vf+ZwfWTK/+uiRB2+5/QODh/TQkXm+cHV0e2a1PcIQAERa+592izf2SAv01392x1UTJh85Vl/X2DB3xswv3jDnizfMufWSKyr272luabl7xqzOrhjRcc0tLd28MAo7xRMqICLN/U+77Qf2Vx6sPnvkqNw+t8EDC376Fw888/qyf1+78lffX9zc2hoRJw0adOnZE37w6S9cN2Vazx2W5ZtLuzD/K7RACAAiS/3PmxcBxZ++ZnbOn+GA/v3nTp85d/rM5tbWzXurTho0+JyRo3phaM0rJesjR+vrGQtEqICIvNz/q/v9T7sVm8t69oNP//5Tzzhr/Gmn986b6eKNG3Lyc7RACAAiHes/n8Da7RWtabnhWb63quP7YtopHgFAIuWq6IiI+uONHdw5Pf+9tmVT5HKWdaGxQAgAIrn7v3fwB6YkACo25vCnaYEQAEQqx/+83dJNGyIlQ2PL8/xQIwCgW17ZsD5yPaWg/nhj0g/L2u0Vx44fz+3PfLForRYIAUCktf+JN1dnS0EA5PxnHjlW/7o9whAA5ImXinqklCiq3Jb0I1O8c3siCjcEAHTRyyWFCXr3TPoVQETMK17X0trqhYcAoI+trNh4qL6uJ37yG13dPiVPbK3em6uZcfGOFshO8QgAIrn7f72vQ/V1VYcOJvfI9OhUBjPCEABEmiYAv9PGPbuSe2TKdu+MJEy7QwBAdK3/yck6l+/5IXrXjuQenJKefPI19UdTM1cOAUAivbyhsEd/fqKvAIp7OL16aPAVAgDeX0tr67wNPdtEb6vem9CDs7/2SEPT8Ujg4CsEALy/VVs39dAol7dUHqw+3twcibwD3OPl1aH6ute2bPQ6RADQB+b3/ECU1ra2yoPVSTw4G3rl7oWxQAgAok/6n5d7ZSDK7sMHDQEKY4EQAEQa9/86sT2HapJ4fDb1yu3rQ/V1Kyu0QAgAItnrP7+XfUcOJe7gHG9u3n24JukT8RAAEH0yAPQt+48e6bmLmL09ky5b9u+JVEzEI90GOgR0wYqKsh6d//V2ew/n/j36Jwt+/7NFL7b/94yJU/729k+NGzEyl1cttYd77VzUNhxbWbHx6klTvCxxBUCkY/zP/w+AXH9I/8Yzj7/17h8Rr23ZOPfHD++sqc5paNWk8moMAQAxvxffcXJ7D2BFRdkf3ljzzg/RX3vqscjp9IV0rMeHAIA+63/a351zuDfk/3nxuXf9+5KqygWlORtSuXV/r05gPnysfkVFmVcmAoBI6P5fJ7BlX27uqS4sKyrfW/Ve//enC/8QiZoF1lelHAKA7FpQ+kYvP2KuloT70SvPx4lG7let2rKp+4+y53DNwbra6O1N2cwIQwAQPd7/9M78r/ijjRVzsPvVorKizXt3n/hrfvXa4sjBXvbbev+8HDlWb0YYAoBI3xLEyzfnoOB+cuXijlzcdP/D+2t9VMe7FYwAINK3+ExN3dFutuo7a6o7uHBm93/BhWVFqR+ahQAgc5ZvLu3N8T/xxwVOd779uTUrO/iVy8pLu/NAa7Ztrqk72ieHSAuEACBSuerA7wpXdefbn319eXR0k8uyY8e7vpHLM68vi76cn6EFQgAQaVt8eM/hmi6P019RUVZT39FP5Q1NTV3e5mx/7ZF3zjLLSEIjAEizZeV91v+0+/mil6JXVkr47brXuvZAv1y+oG/PUW3DsRWbzQhDAJD7T5dr+3yLlS5MQWhuaens5+I12zbvqjnQ2Qc6WFebk1GkkZBluhEAhPlfvemf5v+us9/y6sbiLly4dOEi4J9ffj4fti+2RxgCgBxbWl7St/1Pu63Ve38w77ed+pYX1q/uwgM9t3Zlp76+cMfW36xZkQ9nSguEACDSenfxsaUvd3ykZv3xxsUbi6NLa1Cv2dbR6cc19Ue/9tSjkb3N2hAARCb2f8+nSUZf+/Vj2w/s68hX/n79682trT2aeY3NTV964ie9uQNMaIEQAPSalRUbc7ggc/fVNTY88MRPOzKy8+nVS7v8KM+vX/2+nX5bW9s3nn68tKoyr85XbcOx5ZtLvW4RAKSzUthZU/3AEz858bJ0r2/b3J1lROsaG973/sF3X3g6H+6NmxCAAKCnLMzL97iSqsq5P354056qHA4Z+hP/svTlE/zf773wzK9XLQ1T9hAApNWSTRvyYfzPu9p9uOYzP/9f7zr85levLV5fubWbP3/7gf0/fLcUOXC09i8f/WE+jPoPLRDdMOA73/mOo8AJPLJ4fq72Y4meuUH96sbiTXuqxo8aPWrY8Igo3rn9R6+88Mji+Tn5+et2bFm9tXz0sFOGDho8dNDgiHhq1ZKvPfXYlv178vzEFQwYOHvqxV7AnEC/trY2R4F472m0s7779by6A0wHDR00eMk3Hx7Q31U+oQKiK5ZXlHn3T6j6441Wh0YAELYaD8s3gQAgOtP/GEyS7PzeUNjS1XlwCAAi4/t/6X8i4S3QigrrAiEA6Lx5tpdS4iEAiEz2PwtK3nActEAIAEL/Q2iBEABEJtb/UR2EpbwRAEQG+5/8XP+H6NKWyFogBAAdtUz/E6lqgawLhAAglAaR1VvBDgICgND/RCZboOaWFscBAUDof8JYIBAAhAVk1HoIAIj/1/8UOQ7p80rJei0QAoATWVpeov+JtI4F0gIhAIgTDRdRFFgXCAFA6H8ILRACgExYov8JLRACABUBYYgXAoDISv+zqEz/k3ILSt7QAiEACP1PWBcIAQDKARu9IQCIzPY/r5YVOw6hBUIAkDWLN23Q/4QWCAFAmP9F2O4NAUDY/520WViqBUIAEBERizdtaGxuchwiSy3QMi0QAoCwULCTjgAg7P9FaIEQAER2+p9i/U9ogRAAhAEhhKl/CAAiG+v/WP85MtsCFWmBBADZ9epG/U9kuQVaWl7iOAgALAtDmACIACD0P4QWCAFA6H8ILRACgDAIBDPCSI+BDkE2NTQ1Ld60If+f59zpM2+66LJIbMP+61VL8/9C0D8HAUC2LC3fcOz48fx/np+86sOTx4xL6EEeftLQ/A+AusaGhWVF10+92D+KUAER9n/PG6cPG57cd/+ImDL2zNOHDfdiQAAQedX/LErC/l83XHBp0g/19Rdckv9PclGZsUACgMhQ/5OI8T/XTZ2W9EN93ZSLEzEWaImxQAKAMPAjbwwpKLhqwuSkH+rpEycPKSgwJAwBQORJ/5OI/d8/dN6FBQMSP0ihYMDAayZNDTvFIwDIB0s26X96+RdJQAvU2JyMYcEIADJxsT9rykVpCYBp1gVCABB5Mf9rYwI+6F181rmnDj05Hcf81KEnTztrfGiBEAD0rcUJWf8nNf3Pm2OBpmmBEAC4zE/PO2Z0os6aZngYAoDQ/0TaJwBHYqcE2yleABD6n75144WXpe/gJ2JKcGNz0+JN1oYTAIT5X6H/ydqU4Ih4SQskAIg09j9LknCLb0hBwZUTzkvf8U/KlOBF9ggTAIT9v8IE4MjglODG5iY7BAgAwvrPYQBo9qYER8Q8M8IEAKH/CROAs5htWiABQOh/et8lZ6dnAnAkdkqwFkgAENb/Mf4ns7+g1aEFAJGa/mfpphJjJcOU4Oj4HmHFDU1N/u0IABLv1bKiRPQ/pw8bft6YM9J9LpIyJbixuWlpuXWBBADJl5SpPamcABzJnBIcdooXAEQq+p9l5SX6cTVXaIEQAFmzqOyNRPQ/QwoKpk88PwtnJClTgrVAAoBI/vifwkQ8zw9PvnBA/0y8GpMyJdjq0AKASP76z0Wh/zElOLo2fEALJACIBPc/za2tiXiqM9M7ATi5U4IbmxMzgRwBQFIv4S89e0KKJwBHYqcEh53iBQCR4P6n2Po/Kq/QAiEAsmZhaWL6n9RPAE7ulGAtkAAg7P8eJgBHFqcEh3WBBACh/wkTgCObU4IXb9ygBRIAhP4n7ACTveKrsTkxHyYQACTpsn1IQcH0Cedn8xwlZUpwGAskAAj7f/WAaydflJEJwJHkKcFaIAFAYiwoXa//MSU4tEAIgDD/K5+vAM6/MNsBMM2LCgFAztQ1NixNSP+TtQnAkeQpwUs2aYEEAJGAZdz1P6YEh53iEQBh/pf3vjAl2B5hCIDQ/0ReTQCeNPoMpyxBU4K1QAKA0P/kxE0XXe58RaKmBGuBBABh/lfof7K6Fp51gQQAkbf9T1L2fx9SUHDVhMlOWSRtSvDSTSVaIAFA5GX/U5SU/ifLE4AjyVOCG5ubXi0rcsoEAKbqhAGgWZsSHBHzrAskAAj9T6T/tqdEDC2QACD0P7lz2TkTTh48xCmLZE4J1gIJAPLOSwnqf7K3AWTKhkW9ZEaYACDyqf9Znpz+Z5YBoAk/LMvKtUACgMif/b8S0/+MGzFy0uixTlkkeUpwY3PTorI3nDIBQJieEykd7hLujZ/oJVfofAkAIi/6n82lmu4wJTh6c4+wIi2QACDyYP+vxOz/bgJwpGVKcHNrqxZIABAW6e24meebABzpmBIc9ggTAIT+JwwAzeg9ksUbi7VAAoDQ/3TQ7AsEQHqmBDe3ti4s1QIJAFyGhwnAkbUpwZGo7ecQAJG+/meF/seU4NACIQCy55WS9Qnqf0wATt+B0gIJAPrwAjwxk3FMAI40TgkOe4QJAEL/835mmwAc6ZwSbKd4AUAfeDlR/Y8dYNJ6v6S5tXVB6XqnLKH6tbW1OQpJtP3A/n1HDiXl2ZoA3Fmrt5Yn5amOPeXUs0eOcsoEAAChAgJAAAAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAIAAAEAAACAAABAAAAgAAAQCAAABAAAAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAEAAACAAABAAAAgAAAQCAAABAAAAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAABAAAAgAAAQCAAABAAAAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAAAgAAAQCAAABAAAAgAAAQAAAIAAAEAAACAAABAIAAAEAAACAAABAAAAgAAAQAAAIAAAEAgAAAQAAAIAAAEAAACAAABACAAAAgU/4vuAbXAIKk82IAAAAASUVORK5CYII=', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: 'data:image/png;base64,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', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+    link.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(m));
+    document.head.append(link);
+  } catch (e) { /* nincs */ }
+}
+
+function beepitettBongeszoFigyelmeztetes() {
+  if (!BEEPITETT_BONGESZO) return;
+  const f = $('#beepitettFigy');
+  const masol = el('button', { type: 'button', class: 'gomb-link', text: 'Link másolása' });
+  masol.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.href.split('#')[0]); uzenet('A link a vágólapra került. Illeszd be Safariba vagy Chrome-ba.'); }
+    catch (e) { uzenet(`Másold ki ezt a címet: ${location.href.split('#')[0]}`, { ido: 10000 }); }
+  });
+  f.innerHTML = ikon('figyelem');
+  f.append(el('div', null, el('p', { text: 'Ebben a beépített böngészőben a PDF letöltése és megosztása nem mindig működik. Nyisd meg az oldalt Safariban vagy Chrome-ban.' }), masol));
+  f.hidden = false;
+}
+
+function indul() {
+  fejlecLogo();
+  $('#elonezetGomb').innerHTML = gombTartalom('szem', 'Előnézet');
+  $('#letoltGomb').innerHTML = gombTartalom('letolt', 'PDF letöltése');
+  $('#megosztGomb').innerHTML = gombTartalom('megoszt', 'Megosztás');
+  $('#ujTetelGomb').innerHTML = gombTartalom('plusz', 'Új tétel');
+  $('#ujOrvosGomb').innerHTML = gombTartalom('plusz', 'Új orvos');
+  $('#megosztGomb').hidden = !megosztasTamogatott;
+  $('#savGombok').classList.toggle('egy', !megosztasTamogatott);
+  if (IOS && megosztasTamogatott) {              // iOS-en a megosztás a megbízható út (Mentés a Fájlokba, Nyomtatás, Mail)
+    $('#megosztGomb').className = 'gomb gomb-fo'; $('#letoltGomb').className = 'gomb gomb-masod';
+    $('#savGombok').prepend($('#megosztGomb'));
+  }
+  beepitettBongeszoFigyelmeztetes();
+  $('#verzio').textContent = `${C.cegnev} árlista-generáló · ${VERZIO}`;
+  valasztasIgazit();
+  orvosValasztoRajzol(); listaRajzol(); osszegFrissit();
+  nezetBeallit();
+  if (serultAdatJelzes) uzenet('A tárolt árak sérültek voltak, ezért az alapadatok töltődtek be. A sérült adat külön megmaradt; ha van mentésed, töltsd vissza az Árak lapon.', { hiba: true, ido: 15000 });
+  const tetlen = window.requestIdleCallback || (fn => setTimeout(fn, 400));
+  tetlen(async () => {
+    await feluletBetuk();
+    savMeret();
+    try { await regiGyorsitotarTorles(); } catch (e) { /* nincs */ }
+    // minden szükséges fájl letöltése és elmentése, hogy utána offline is működjön
+    for (const kulcs of Object.keys(KONYVTARAK)) if (KONYVTARAK[kulcs].offline) { try { await bajtok(kulcs); } catch (e) { /* offline: később */ } }
+    try { await pdfKeszenlet(); } catch (e) { /* gombnyomáskor jelezzük */ }
+    if (location.hash === '#arak') offlineRajzol();
+    elokeszitesUtemez();
+  });
+  szolgaltatasMunkas();
+  manifestBeallit();
+}
+
+// teszteléshez és hibakereséshez (a felület nem használja)
+window.dentAl = { verzio: VERZIO, pdfBemenet, elokeszit, get elokeszitett() { return elokeszitett; }, szam, ft, datumok, sorszamKovetkezo, offlineAllapot, nevelo, cimzettNev, fajlnev, arErtelmez };
+
+indul();
+})();
+</script>
+</body>
+</html>
