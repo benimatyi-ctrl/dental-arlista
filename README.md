@@ -1,5 +1,7 @@
 # dentÁl árlista
 
+**Élő cím:** https://benimatyi-ctrl.github.io/dental-arlista/
+
 Telefonon futó árlista-generáló a dentÁl számára. Kiválasztod az orvost, megadod a mennyiségeket, és egyoldalas A4-es PDF árlista készül, amit letölthetsz vagy egyből megoszthatsz. Kiváltja a `vba.xlsm` makróját.
 
 ## Fájlok
