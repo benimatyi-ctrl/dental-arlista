@@ -42,6 +42,7 @@ Androidon az `index.html` Chrome-ban megnyitható (például a Letöltések mapp
 3. Állítsd be a mennyiségeket a −/+ gombokkal vagy beírással. Több mint 8 tételnél kereső is megjelenik.
 4. Alul látod a kiválasztott tételek számát és az élő végösszeget.
 5. **Előnézet**: megmutatja a kész PDF-et. **PDF letöltése** / **Megosztás**: elkészíti és letölti vagy megosztja (nyomtató, e-mail, üzenetküldő).
+6. **Gmail**: telefonon a megosztást nyitja meg kitöltött tárggyal és levélszöveggel, a PDF-fel csatolva; ott válaszd a Gmailt, és írd be a címzettet. Számítógépen a PDF letöltődik, és megnyílik a Gmail új levele a címzettel, tárggyal és szöveggel kitöltve; a PDF-et a Letöltések mappából csatold. A címzettet az orvos e-mail-címéből veszi (Árak lap → az orvos nevére koppintva adható meg).
 
 Tudnivalók:
 
@@ -109,6 +110,9 @@ Az `index.html` legelején, az első `<script>` blokkban van a `window.CONFIG`. 
 | `ervenyessegNapok` | Ennyi napig érvényes az árlista; `0` esetén nem írja ki | `30` |
 | `nullazasGeneralasUtan` | A mennyiségek nullázódjanak-e a PDF után. Az Árak lapon is átállítható. | `true` |
 | `cimzettElotag` | A címzett neve elé kerül a PDF-en („Dr. Anna”). Ha a név már így kezdődik, nem ismétli. | `"Dr. "` |
+| `gmailGomb` | Megjelenjen-e a Gmail gyorsgomb | `true` |
+| `emailTargy`, `emailSzoveg` | A Gmail-levél tárgya és szövege. Helyettesítők: `{cimzett}`, `{datum}`, `{sorszam}`, `{osszeg}`, `{cegnev}`; új sor: `
+` | Rövid, udvarias kísérőszöveg |
 
 A logók az `index.html` végén, a `logo-szines`, `logo-mono` és `logo-jel` sablonokban vannak. Cseréjükhöz a teljes `<svg>…</svg>` részt kell kicserélni.
 

@@ -23,7 +23,12 @@ window.CONFIG = {
   pdfLabjegyzet: "Kérdés esetén keressen minket bizalommal a fenti elérhetőségeken.",
   ervenyessegNapok: 30,                      // az árlista érvényessége napokban (0 = nem írja ki)
   nullazasGeneralasUtan: true,               // a PDF elkészítése után a mennyiségek nullázódnak (mint a makróban)
-  cimzettElotag: "Dr. "                      // a PDF-en a név elé kerül („Dr. Anna”); üresen hagyva elmarad
+  cimzettElotag: "Dr. ",                     // a PDF-en a név elé kerül („Dr. Anna”); üresen hagyva elmarad
+
+  // Gmail-gomb: a levél tárgya és szövege. Helyettesítők: {cimzett} {datum} {sorszam} {osszeg} {cegnev}
+  gmailGomb: true,
+  emailTargy: "Árlista – {cegnev} – {datum}",
+  emailSzoveg: "Tisztelt {cimzett}!\n\nMellékelten küldöm az árlistát (dátum: {datum}, sorszám: {sorszam}).\n\nÜdvözlettel:\n{cegnev}"
 };
 </script>
 <title>dentÁl árlista</title>
@@ -192,6 +197,10 @@ p { margin: 0; }
 .osszeg strong { color: var(--tinta); font-size: 21px; font-weight: 600; white-space: nowrap; }
 .sav-gombok { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sav-gombok.egy { grid-template-columns: 1fr; }
+.sav-gombok.harom { grid-template-columns: minmax(0, 1fr) auto auto; }
+.sav-gombok.gmail2 { grid-template-columns: minmax(0, 1fr) auto; }
+.gomb.csak-ikon { width: 52px; padding: 0; }
+.gomb.gomb-gmail { padding: 0 14px; }
 .sav-gombok .gomb { min-width: 0; }
 .kesz-fej { display: flex; gap: 10px; align-items: flex-start; }
 .kesz-fej .pipa { width: 28px; height: 28px; border-radius: 50%; background: var(--kiemeles); color: #fff; display: grid; place-items: center; flex: none; margin-top: 1px; }
@@ -289,11 +298,14 @@ p { margin: 0; }
 .fejlec-gombok { display: flex; align-items: center; gap: 2px; }
 .ikon-gomb { width: 48px; padding: 0; justify-content: center; margin-right: 0; }
 .datum-sor { display: flex; gap: 10px; align-items: stretch; }
-.datum-sor input { flex: 1; min-width: 0; min-height: 52px; padding: 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 14px; background: var(--papir); color: var(--tinta); font: 600 17px/1.2 var(--betu); display: block; -webkit-appearance: none; appearance: none; }
-.datum-sor input::-webkit-date-and-time-value { text-align: left; }
-.datum-sor input:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
-.datum-sor input.nem-mai { border-color: var(--figy); box-shadow: 0 0 0 3px var(--figy-hatter); }
+.datum-gomb { position: relative; flex: 1; min-width: 0; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--vonal-mezo); border-radius: 14px; background: var(--papir); color: var(--tinta); font-size: 17px; font-weight: 600; line-height: 1.25; text-align: center; cursor: pointer; }
+.datum-gomb .ikon { color: var(--masodlagos); }
+.datum-gomb input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; -webkit-appearance: none; appearance: none; }
+.datum-gomb input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.datum-gomb:focus-within { border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
+.datum-gomb.nem-mai { border-color: var(--figy); box-shadow: 0 0 0 3px var(--figy-hatter); }
 .datum-sor .gomb { flex: none; min-width: 72px; }
+@media (max-width: 419px) { .datum-gomb { font-size: 16px; padding: 8px 10px; } .datum-gomb.nem-mai .ikon { display: none; } }
 .figy-szoveg { color: var(--figy); }
 .gh-urlap { display: grid; gap: 12px; }
 .gh-urlap .mezo input { font-size: 16px; }
@@ -342,7 +354,11 @@ p { margin: 0; }
   <section class="blokk" aria-labelledby="datumCim">
     <h2 class="blokk-cim" id="datumCim">Dátum</h2>
     <div class="datum-sor">
-      <input type="date" id="datumMezo" aria-labelledby="datumCim" aria-describedby="datumTipp">
+      <label class="datum-gomb" id="datumGomb">
+        <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        <span id="datumSzoveg" aria-hidden="true"></span>
+        <input type="date" id="datumMezo" aria-label="Dátum" aria-describedby="datumTipp">
+      </label>
       <button type="button" class="gomb gomb-masod" id="maGomb" hidden>Ma</button>
     </div>
     <p class="tipp figy-szoveg" id="datumTipp" hidden>Nem a mai dátum: ez kerül a PDF-re, a fájlnévbe és a sorszámba.</p>
@@ -438,6 +454,7 @@ p { margin: 0; }
       </div>
       <div class="sav-gombok" id="savGombok">
         <button type="button" class="gomb gomb-fo" id="letoltGomb"></button>
+        <button type="button" class="gomb gomb-masod" id="gmailGomb" hidden></button>
         <button type="button" class="gomb gomb-masod" id="megosztGomb" hidden></button>
       </div>
     </div>
@@ -448,6 +465,7 @@ p { margin: 0; }
       </div>
       <div class="sav-gombok" id="keszGombok">
         <button type="button" class="gomb gomb-fo" id="keszMegosztGomb"></button>
+        <button type="button" class="gomb gomb-masod" id="keszGmailGomb" hidden></button>
         <button type="button" class="gomb gomb-masod" id="keszLetoltGomb"></button>
       </div>
       <div class="kesz-lab">
@@ -476,10 +494,11 @@ p { margin: 0; }
    ====================================================================== */
 const ALAP_CONFIG = {
   cegnev: 'dentÁl', cim: '', telefon: '', email: '', logo: '#logo-szines', logoMono: '#logo-mono',
-  pdfSzinesLogo: true, pdfLabjegyzet: '', ervenyessegNapok: 30, nullazasGeneralasUtan: true, cimzettElotag: 'Dr. '
+  pdfSzinesLogo: true, pdfLabjegyzet: '', ervenyessegNapok: 30, nullazasGeneralasUtan: true, cimzettElotag: 'Dr. ',
+  gmailGomb: true, emailTargy: 'Árlista – {cegnev} – {datum}', emailSzoveg: 'Tisztelt {cimzett}!\n\nMellékelten küldöm az árlistát.\n\nÜdvözlettel:\n{cegnev}'
 };
 const C = Object.assign({}, ALAP_CONFIG, window.CONFIG || {});
-const VERZIO = '1.2.0';
+const VERZIO = '1.3.0';
 const NBSP = '\u{00A0}';
 const MAX_MENNY = 9999;
 const MAX_AR = 99999999;                         // 99 999 999 Ft / db
@@ -551,6 +570,8 @@ const IKON = {
   jobbra: '<path d="M5 12h13.5m0 0L13 6.5m5.5 5.5L13 17.5"/>',
   figyelem: '<path d="M12 4.2 3 19.5h18L12 4.2Z"/><path d="M12 10v4.2M12 16.9v.2"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  level: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><path d="m4 7 8 6 8-6"/>',
+  naptar: '<rect x="3.5" y="5" width="17" height="15" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   archiv: '<path d="M3.5 5.5h17v4h-17z"/><path d="M5 9.5v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 13h4"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>'
 };
@@ -653,12 +674,13 @@ function alapAdatok() {
   return { formatum: 1, orvosok, tetelek, arak, modositva: null };
 }
 const ervenyesAr = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_AR;
+const emailTiszta = s => (typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) ? s.trim().slice(0, 200) : '');
 function ellenorzottAdatok(x) {
   if (!x || typeof x !== 'object' || !Array.isArray(x.orvosok) || !Array.isArray(x.tetelek)) return null;
   const orvosok = [], tetelek = [], arak = {}, oId = new Set(), tId = new Set();
   for (const o of x.orvosok) {
     if (!o || typeof o.id !== 'string' || typeof o.nev !== 'string' || !o.nev.trim() || oId.has(o.id)) return null;
-    oId.add(o.id); orvosok.push({ id: o.id, nev: o.nev.trim() });
+    oId.add(o.id); orvosok.push({ id: o.id, nev: o.nev.trim(), email: emailTiszta(o.email) });
   }
   for (const t of x.tetelek) {
     if (!t || typeof t.id !== 'string' || typeof t.nev !== 'string' || !t.nev.trim() || tId.has(t.id)) return null;
@@ -1593,7 +1615,7 @@ let megosztasFut = false;
 let utolso = null;                                 // a sávban mutatott legutóbbi PDF
 function gombFoglalt(gomb, igen, szoveg) {
   if (!gomb) return;
-  if (igen) { gomb.dataset.eredeti = gomb.innerHTML; gomb.innerHTML = `<span class="porgo" aria-hidden="true"></span><span>${esc(szoveg)}</span>`; gomb.setAttribute('aria-busy', 'true'); gomb.disabled = true; }
+  if (igen) { gomb.dataset.eredeti = gomb.innerHTML; gomb.innerHTML = gomb.classList.contains('csak-ikon') ? '<span class="porgo" aria-hidden="true"></span><span class="lathatatlan">PDF készül…</span>' : `<span class="porgo" aria-hidden="true"></span><span>${esc(gomb.classList.contains('gomb-gmail') ? 'Gmail' : szoveg)}</span>`; gomb.setAttribute('aria-busy', 'true'); gomb.disabled = true; }
   else { if (gomb.dataset.eredeti) gomb.innerHTML = gomb.dataset.eredeti; gomb.removeAttribute('aria-busy'); gomb.disabled = false; }
 }
 /* a sorszám csak akkor foglalható le, ha ugyanaz a nap és közben nem készült másik árlista */
@@ -1607,7 +1629,7 @@ async function pdfMuvelet(mod, gomb) {
   orvosHibaTorol();
   let kesz = elokeszitett && elokeszitett.kulcs === a.b.kulcs ? elokeszitett : null;
   if (kesz && kesz.tulcsordul) return tulcsordulasJelzes(kesz);
-  if (kesz && mod === 'megosztas' && veglegesitheto(kesz)) return megosztas(kesz, false);   // azonnal, a koppintáson belül
+  if (kesz && (mod === 'megosztas' || mod === 'gmail') && veglegesitheto(kesz)) return megosztas(kesz, false, mod === 'gmail');   // azonnal, a koppintáson belül
   fut = true; gombFoglalt(gomb, true, 'PDF készül…');
   try { kesz = await generalas(a.b); }
   catch (e) { uzenet(hibaSzoveg(e), { hiba: true, ido: 9000 }); return; }
@@ -1615,7 +1637,7 @@ async function pdfMuvelet(mod, gomb) {
   if (kesz.tulcsordul) return tulcsordulasJelzes(kesz);
   if (!veglegesitheto(kesz)) { elokeszitett = null; return pdfMuvelet(mod, gomb); }
   if (mod === 'letoltes') { veglegesit(kesz); letolt(kesz.blob, kesz.fajlnev); utana(kesz, 'letoltve'); }
-  else megosztas(kesz, false);
+  else megosztas(kesz, false, mod === 'gmail');
 }
 function letolt(blob, nev) {
   // iOS-en a PDF típusú blobot a Safari néha a lap helyén nyitja meg letöltés helyett (WebKit 263608)
@@ -1632,11 +1654,12 @@ function megnyit(blob) {
   else { const a = el('a', { href: url, target: '_blank', rel: 'noopener', style: 'display:none' }); document.body.append(a); a.click(); a.remove(); }
   setTimeout(() => URL.revokeObjectURL(url), 300000);
 }
-function megosztas(kesz, ujraKeszbol) {
+function megosztas(kesz, ujraKeszbol, gmail = false) {
   if (megosztasFut) return;
   const fajl = new File([kesz.blob], kesz.fajlnev, { type: 'application/pdf' });
   let tud = false;
   try { tud = !!(navigator.canShare && navigator.canShare({ files: [fajl] })); } catch (e) { tud = false; }
+  if (!tud && gmail) return gmailAsztali(kesz, ujraKeszbol);
   if (!tud) {
     veglegesit(kesz);
     letolt(kesz.blob, kesz.fajlnev);
@@ -1647,7 +1670,8 @@ function megosztas(kesz, ujraKeszbol) {
   const ujVeglegesites = !kesz.vegleges;
   veglegesit(kesz);
   let igeret;
-  try { igeret = navigator.share({ files: [fajl], title: kesz.fajlnev }); }
+  const adatok = gmail ? (() => { const e = emailSablon(kesz); return { files: [fajl], title: e.targy, text: e.szoveg }; })() : { files: [fajl], title: kesz.fajlnev };
+  try { igeret = navigator.share(adatok); }
   catch (e) { igeret = Promise.reject(e); }
   megosztasFut = true;
   igeret.then(() => {
@@ -1661,7 +1685,7 @@ function megosztas(kesz, ujraKeszbol) {
     if (ujVeglegesites) { sorszamVisszavon(kesz.dk.kulcs, kesz.sorszamN); kesz.vegleges = false; }
     if (nev === 'AbortError') { if (!ujraKeszbol) uzenet('A megosztás megszakadt; a mennyiségek megmaradtak.'); return; }
     if (nev === 'NotAllowedError' && !ujraKeszbol) {
-      keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny: null, nullazva: false, megosztasraVar: true });
+      keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny: null, nullazva: false, megosztasraVar: true, gmail });
       return;
     }
     uzenet('A megosztás nem sikerült. Töltsd le a PDF-et, és csatold kézzel.', { hiba: true, ido: 8000 });
@@ -1679,21 +1703,75 @@ function utana(kesz, mod) {
   tartosTarolasKeres();
 }
 
+/* ---------- Gmail gyorsgomb ---------- */
+const gmailBe = () => C.gmailGomb !== false;
+const orvosEmail = nev => { const o = adat.orvosok.find(x => x.nev === nev); return (o && o.email) || ''; };
+function emailSablon(kesz) {
+  const ertekek = { cegnev: C.cegnev, cimzett: cimzettNev(kesz.orvos), datum: kesz.dk.kijelzo, sorszam: kesz.sorszam, osszeg: ft(kesz.osszeg), fajlnev: kesz.fajlnev };
+  const helyettesit = s => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(ertekek, k) ? ertekek[k] : m));
+  return { targy: helyettesit(C.emailTargy || 'Árlista – {cegnev} – {datum}'), szoveg: helyettesit(C.emailSzoveg || '') };
+}
+function gmailUrl(kesz) {
+  const { targy, szoveg } = emailSablon(kesz);
+  const email = orvosEmail(kesz.orvos);
+  return 'https://mail.google.com/mail/?view=cm&fs=1&tf=1' + (email ? '&to=' + encodeURIComponent(email) : '') +
+    '&su=' + encodeURIComponent(targy) + '&body=' + encodeURIComponent(szoveg);
+}
+/* ahol fájlt nem lehet megosztani (pl. számítógépen): a PDF letöltődik, és megnyílik a Gmail új levele kitöltve */
+function gmailAsztali(kesz, ujraKeszbol) {
+  veglegesit(kesz);
+  letolt(kesz.blob, kesz.fajlnev);
+  const url = gmailUrl(kesz);
+  const w = window.open(url, '_blank');
+  if (w) { try { w.opener = null; } catch (e) { /* nincs */ } }
+  if (!ujraKeszbol) utana(kesz, 'gmailAsztal');
+  if (w) uzenet('A PDF letöltődött, és megnyílt a Gmail új levele. Csatold a PDF-et a Letöltések mappából (gemkapocs ikon).', { ido: 10000 });
+  else uzenet('A PDF letöltődött. Nyisd meg a Gmail új levelét, és csatold a PDF-et.', { ido: 12000, gomb: 'Gmail', kattintas: () => { const w2 = window.open(url, '_blank'); if (w2) { try { w2.opener = null; } catch (e) { /* nincs */ } } } });
+}
+/* az alsó sáv gombjai: elsődleges + Gmail + kis ikongomb (megosztás vagy letöltés) */
+function savGombokElrendez(hely, elso, gmail, harmadik, harmadikIkon, harmadikSzoveg) {
+  const lathato = [elso];
+  if (gmail) { gmail.hidden = false; gmail.className = 'gomb gomb-masod gomb-gmail'; gmail.innerHTML = gombTartalom('level', 'Gmail'); lathato.push(gmail); }
+  if (harmadik) {
+    harmadik.hidden = false;
+    if (gmail) {
+      harmadik.className = 'gomb gomb-masod csak-ikon';
+      harmadik.innerHTML = ikon(harmadikIkon) + `<span class="lathatatlan">${esc(harmadikSzoveg)}</span>`;
+      harmadik.setAttribute('aria-label', harmadikSzoveg); harmadik.title = harmadikSzoveg;
+    } else {
+      harmadik.className = 'gomb gomb-masod';
+      harmadik.innerHTML = gombTartalom(harmadikIkon, harmadikSzoveg);
+      harmadik.removeAttribute('aria-label'); harmadik.removeAttribute('title');
+    }
+    lathato.push(harmadik);
+  }
+  for (const g of lathato) hely.append(g);
+  hely.classList.remove('egy', 'ketto', 'harom', 'gmail2');
+  if (lathato.length === 1) hely.classList.add('egy');
+  else if (lathato.length === 3) hely.classList.add('harom');
+  else if (gmail) hely.classList.add('gmail2');
+}
+
 /* ---------- „Kész” állapot az alsó sávban ---------- */
 function keszModMutat(u) {
   utolso = u;
   const fokuszASavban = $('#sav').contains(document.activeElement);
   $('#savNormal').hidden = true; $('#savKesz').hidden = false;
   $('#savKesz .pipa').innerHTML = ikon(u.megosztasraVar ? 'megoszt' : 'pipa');
-  $('#keszCim').textContent = u.megosztasraVar ? 'A PDF elkészült. Koppints a Megosztás gombra.' : `${u.mod === 'megosztva' ? 'Megosztva' : 'Letöltve'} · sorszám: ${u.sorszam}`;
+  const cimek = { megosztva: 'Megosztva', letoltve: 'Letöltve', gmailAsztal: 'Letöltve, a Gmail megnyílt' };
+  $('#keszCim').textContent = u.megosztasraVar ? `A PDF elkészült. Koppints a ${u.gmail ? 'Gmail' : 'Megosztás'} gombra.` : `${cimek[u.mod] || 'Letöltve'} · sorszám: ${u.sorszam}`;
   $('#keszFajl').textContent = u.fajlnev;
   keszGhFrissit();
-  const mg = $('#keszMegosztGomb'), lg = $('#keszLetoltGomb');
-  mg.hidden = !megosztasTamogatott;
-  mg.innerHTML = gombTartalom('megoszt', 'Megosztás');
-  lg.innerHTML = gombTartalom('letolt', u.megosztasraVar ? 'Letöltés' : 'Letöltés újra');
-  lg.className = 'gomb ' + (megosztasTamogatott ? 'gomb-masod' : 'gomb-fo');
-  $('#keszGombok').classList.toggle('egy', !megosztasTamogatott);
+  const mg = $('#keszMegosztGomb'), lg = $('#keszLetoltGomb'), gg = $('#keszGmailGomb');
+  mg.hidden = !megosztasTamogatott; gg.hidden = !gmailBe();
+  const letoltSzoveg = u.megosztasraVar ? 'Letöltés' : 'Letöltés újra';
+  if (megosztasTamogatott) {
+    mg.className = 'gomb gomb-fo'; mg.innerHTML = gombTartalom('megoszt', 'Megosztás');
+    savGombokElrendez($('#keszGombok'), mg, gmailBe() ? gg : null, lg, 'letolt', letoltSzoveg);
+  } else {
+    lg.className = 'gomb gomb-fo'; lg.innerHTML = gombTartalom('letolt', letoltSzoveg);
+    savGombokElrendez($('#keszGombok'), lg, gmailBe() ? gg : null, null);
+  }
   $('#keszVisszaGomb').hidden = !u.nullazva;
   $('#keszMegnyitGomb').hidden = !!u.megosztasraVar;
   $('#keszUjGomb').textContent = u.megosztasraVar ? 'Mégse' : (u.nullazva ? 'Új árlista' : 'Bezárás');
@@ -1713,9 +1791,19 @@ $('#keszMegosztGomb').addEventListener('click', () => {
     const k = utolso.kesz;
     keszModBezar();
     if (!veglegesitheto(k)) { elokeszitett = null; pdfMuvelet('megosztas', $('#megosztGomb')); return; }
-    megosztas(k, false); return;
+    megosztas(k, false, !!utolso.gmail); return;
   }
   megosztas(utolso.kesz, true);
+});
+$('#keszGmailGomb').addEventListener('click', () => {
+  if (!utolso) return;
+  const k = utolso.kesz;
+  if (utolso.megosztasraVar) {
+    keszModBezar();
+    if (!veglegesitheto(k)) { elokeszitett = null; pdfMuvelet('gmail', $('#gmailGomb')); return; }
+    megosztas(k, false, true); return;
+  }
+  megosztas(k, true, true);
 });
 $('#keszLetoltGomb').addEventListener('click', () => {
   if (!utolso) return;
@@ -1737,6 +1825,7 @@ $('#keszUjGomb').addEventListener('click', () => { keszModBezar(); osszegFrissit
 
 $('#letoltGomb').addEventListener('click', e => pdfMuvelet('letoltes', e.currentTarget));
 $('#megosztGomb').addEventListener('click', e => pdfMuvelet('megosztas', e.currentTarget));
+$('#gmailGomb').addEventListener('click', e => pdfMuvelet('gmail', e.currentTarget));
 $('#elonezetGomb').addEventListener('click', () => elonezet());
 
 /* ---------- előnézet (pdf.js, a tényleges PDF-ből) ---------- */
@@ -1896,20 +1985,35 @@ function nevMezo(cimke, ertek) {
 }
 const nevFoglalt = (tomb, nev, kiveve) => tomb.some(x => x.id !== kiveve && norm(x.nev) === norm(nev));
 
+function emailMezo(ertek) {                      // az orvos e-mail-címe (a Gmail-gombhoz); üresen hagyható
+  const inp = el('input', { id: 'emailMezo', type: 'email', inputmode: 'email', value: ertek || '', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', maxlength: '200', placeholder: 'pelda@rendelo.hu' });
+  const hiba = el('p', { class: 'mezo-hiba', hidden: true });
+  const doboz = el('div', { class: 'mezo' }, el('label', { for: 'emailMezo', text: 'E-mail-cím (a Gmail-gombhoz, nem kötelező)' }), inp, hiba);
+  const ervenyes = () => {
+    const v = inp.value.trim();
+    if (!v) return '';
+    if (emailTiszta(v)) return v;
+    hiba.innerHTML = ikon('figyelem') + '<span>Az e-mail-cím formátuma nem jó (például anna@rendelo.hu).</span>'; hiba.hidden = false; inp.focus();
+    return null;
+  };
+  return { inp, doboz, ervenyes };
+}
 async function ujElem(fajta) {
   const tetel = fajta === 'tetel';
   const elotag = String(C.cimzettElotag || '').trim();
   const cimke = tetel ? 'Megnevezés' : (elotag ? `Név (a PDF-en „${elotag}” előtaggal jelenik meg)` : 'Név');
   const m = nevMezo(cimke, '');
+  const em = tetel ? null : emailMezo('');
   const ell = v => nevFoglalt(tetel ? adat.tetelek : adat.orvosok, v) ? `Már van ilyen nevű ${tetel ? 'tétel' : 'orvos'}.` : null;
-  m.inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = m.ervenyes(ell); if (v) dlgBezar(v); } });
-  const nev = await parbeszed({
-    cim: tetel ? 'Új tétel' : 'Új orvos', tartalom: m.doboz, fokusz: m.inp,
-    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Hozzáadás', tipus: 'fo', kattintas: () => { const v = m.ervenyes(ell); if (v) dlgBezar(v); return false; } }]
+  const kesz = () => { const v = m.ervenyes(ell); if (!v) return; const e = em ? em.ervenyes() : ''; if (e === null) return; dlgBezar({ nev: v, email: e }); };
+  for (const mezo of [m.inp, em && em.inp].filter(Boolean)) mezo.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); kesz(); } });
+  const r = await parbeszed({
+    cim: tetel ? 'Új tétel' : 'Új orvos', tartalom: el('div', { style: 'display:grid;gap:16px' }, m.doboz, em && em.doboz), fokusz: m.inp,
+    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Hozzáadás', tipus: 'fo', kattintas: () => { kesz(); return false; } }]
   });
-  if (!nev) return;
+  if (!r) return;
   const id = uid(tetel ? 't' : 'o');
-  if (tetel) { adat.tetelek.push({ id, nev }); adat.arak[id] = {}; } else adat.orvosok.push({ id, nev });
+  if (tetel) { adat.tetelek.push({ id, nev: r.nev }); adat.arak[id] = {}; } else adat.orvosok.push({ id, nev: r.nev, email: r.email });
   mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
   const elso = $(tetel ? `.ar-mezo[data-t="${id}"]` : `.ar-mezo[data-o="${id}"]`);
   if (elso) { elso.scrollIntoView({ block: 'center', inline: 'center' }); elso.focus({ preventScroll: true }); }
@@ -1928,6 +2032,7 @@ async function elemSzerkeszt(fajta, id) {
   const fajtaNev = tetel ? 'tétel' : 'orvos';
   const gombSzelektor = tetel ? `.sor-gomb[data-tetel="${id}"]` : `.fej-gomb[data-orvos="${id}"]`;
   const m = nevMezo(tetel ? 'Megnevezés' : 'Név', x.nev);
+  const em = tetel ? null : emailMezo(x.email || '');
   const ell = v => nevFoglalt(tomb(), v, id) ? `Már van ilyen nevű ${fajtaNev}.` : null;
   // áthelyezés: azonnal történik, a párbeszédablak nyitva marad
   const elore = el('button', { type: 'button', class: 'gomb gomb-masod', html: gombTartalom(tetel ? 'fel' : 'balra', tetel ? 'Feljebb' : 'Balra') });
@@ -1947,19 +2052,24 @@ async function elemSzerkeszt(fajta, id) {
   elore.addEventListener('click', () => mozgat(-1)); hatra.addEventListener('click', () => mozgat(1));
   const torles = el('button', { type: 'button', class: 'gomb-link veszely', text: tetel ? 'Tétel törlése' : 'Orvos törlése' });
   torles.addEventListener('click', () => dlgBezar({ mod: 'torol' }));
-  const tartalom = el('div', { style: 'display:grid;gap:16px' }, m.doboz);
+  const tartalom = el('div', { style: 'display:grid;gap:16px' }, m.doboz, em && em.doboz);
   if (tomb().length > 1) tartalom.append(el('div', { class: 'mozgato' }, hely, elore, hatra));
   tartalom.append(el('div', null, torles));
   helyFrissit();
-  m.inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = m.ervenyes(ell); if (v) dlgBezar({ mod: 'ment', nev: v }); } });
+  const kesz = () => { const v = m.ervenyes(ell); if (!v) return; const e = em ? em.ervenyes() : ''; if (e === null) return; dlgBezar({ mod: 'ment', nev: v, email: e }); };
+  for (const mezo of [m.inp, em && em.inp].filter(Boolean)) mezo.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); kesz(); } });
   const r = await parbeszed({
     cim: tetel ? 'Tétel szerkesztése' : 'Orvos szerkesztése', tartalom, fokusz: m.inp,
-    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Mentés', tipus: 'fo', kattintas: () => { const v = m.ervenyes(ell); if (v) dlgBezar({ mod: 'ment', nev: v }); return false; } }]
+    gombok: [{ szoveg: 'Mégse', ertek: null, tipus: 'masod' }, { szoveg: 'Mentés', tipus: 'fo', kattintas: () => { kesz(); return false; } }]
   });
   const most = tomb().find(y => y.id === id);   // közben (pl. másik lapon) változhatott
   if (!r || !most) { arTablaUjra(gombSzelektor); return; }
   if (r.mod === 'ment') {
-    if (r.nev !== most.nev) { most.nev = r.nev; mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true); }
+    const emailValt = !tetel && (r.email || '') !== (most.email || '');
+    if (r.nev !== most.nev || emailValt) {
+      most.nev = r.nev; if (!tetel) most.email = r.email || '';
+      mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
+    }
     arTablaUjra(gombSzelektor);
   } else if (r.mod === 'torol') {
     const db = tetel ? adat.orvosok.filter(o => arOf(id, o.id) != null).length : adat.tetelek.filter(t => arOf(t.id, id) != null).length;
@@ -1977,15 +2087,20 @@ async function elemSzerkeszt(fajta, id) {
 /* ---------- Excel-import ---------- */
 const terkep = () => Object.create(null);       // név szerinti árak: prototípus nélküli objektum
 function nevesForma(a) {
+  const emailek = {};
+  for (const o of a.orvosok) if (o.email) emailek[o.nev] = o.email;
   return {
     orvosok: a.orvosok.map(o => o.nev),
+    emailek,
     tetelek: a.tetelek.map(t => { const arak = terkep(); for (const o of a.orvosok) { const v = arOf(t.id, o.id); if (v != null) arak[o.nev] = v; } return { nev: t.nev, arak }; })
   };
 }
 function nevesbolAdat(n) {
   const regiO = new Map(adat.orvosok.map(o => [o.nev, o.id]));
   const regiT = new Map(adat.tetelek.map(t => [t.nev, t.id]));
-  const orvosok = n.orvosok.map(nev => ({ id: regiO.get(nev) || uid('o'), nev }));
+  const regiE = new Map(adat.orvosok.map(o => [o.nev, o.email || '']));
+  const ujE = n.emailek && typeof n.emailek === 'object' ? n.emailek : {};
+  const orvosok = n.orvosok.map(nev => ({ id: regiO.get(nev) || uid('o'), nev, email: emailTiszta(Object.prototype.hasOwnProperty.call(ujE, nev) ? ujE[nev] : regiE.get(nev)) }));
   const oMap = new Map(orvosok.map(o => [o.nev, o.id]));
   const tetelek = []; const arak = {};
   for (const t of n.tetelek) {
@@ -2194,7 +2309,7 @@ $('#excelFajl').addEventListener('change', async e => {
 /* ---------- JSON mentés és visszatöltés ---------- */
 $('#jsonMentesGomb').addEventListener('click', () => {
   const n = nevesForma(adat);
-  const tartalom = { alkalmazas: 'dentAl-arlista', formatum: 1, mentve: new Date().toISOString(), cegnev: C.cegnev, orvosok: n.orvosok, tetelek: n.tetelek, beallitasok: beall };
+  const tartalom = { alkalmazas: 'dentAl-arlista', formatum: 1, mentve: new Date().toISOString(), cegnev: C.cegnev, orvosok: n.orvosok, emailek: n.emailek, tetelek: n.tetelek, beallitasok: beall };
   letolt(new Blob([JSON.stringify(tartalom, null, 2)], { type: 'application/json' }), `dental_arak_${datumok(new Date()).fajl}.json`);
   uzenet('A mentés letöltődött. Tedd biztos helyre, például küldd el magadnak e-mailben.');
 });
@@ -2223,13 +2338,23 @@ function mentesErtelmez(j) {                       // a JSON-mentés (fájlból 
   if (typeof jb.nullazas === 'boolean') ujBeall.nullazas = jb.nullazas;
   if (typeof jb.szinesLogo === 'boolean') ujBeall.szinesLogo = jb.szinesLogo;
   const beallValtozik = ('nullazas' in ujBeall && ujBeall.nullazas !== nullazasBe()) || ('szinesLogo' in ujBeall && ujBeall.szinesLogo !== szinesLogoBe());
-  return { orvosok, tetelek, figy, ujBeall, beallValtozik };
+  const emailek = {}; const je = objektum(j.emailek);
+  for (const o of orvosok) if (Object.prototype.hasOwnProperty.call(je, o)) { const em = emailTiszta(je[o]); if (em) emailek[o] = em; }
+  const emailValtozik = Object.keys(emailek).some(o => { const x = adat.orvosok.find(y => y.nev === o); return x && (x.email || '') !== emailek[o]; });
+  return { orvosok, tetelek, emailek, figy, ujBeall, beallValtozik, emailValtozik };
+}
+function mentesEgyeb(m) {
+  const r = [];
+  if (m.beallValtozik) r.push('A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.');
+  if (m.emailValtozik) r.push('Az orvosok e-mail-címei a mentés szerint frissülnek.');
+  return r.join(' ');
 }
 function mentesAlkalmaz(m, forrasNev) {
   if (m.beallValtozik) { beall = Object.assign({}, beall, m.ujBeall); mentBeall(); beallRajzol(); elokeszitett = null; }
   const d = osszevet(nevesForma(adat), { orvosok: m.orvosok, tetelek: m.tetelek });
-  if (!d.semmi) adatokFelulir({ orvosok: m.orvosok, tetelek: m.tetelek }, forrasNev);
-  else uzenet('A beállítások a mentés szerint frissültek.');
+  if (!d.semmi) { adatokFelulir({ orvosok: m.orvosok, tetelek: m.tetelek, emailek: m.emailek }, forrasNev); return; }
+  if (m.emailValtozik) { for (const o of adat.orvosok) if (m.emailek[o.nev]) o.email = m.emailek[o.nev]; mentAdatok(); }
+  uzenet(m.emailValtozik ? 'Az e-mail-címek a mentés szerint frissültek.' : 'A beállítások a mentés szerint frissültek.');
 }
 $('#jsonFajl').addEventListener('change', async e => {
   const fajl = e.target.files && e.target.files[0]; if (!fajl) return;
@@ -2241,7 +2366,7 @@ $('#jsonFajl').addEventListener('change', async e => {
     const m = mentesErtelmez(j);
     const mentve = j.mentve && !isNaN(Date.parse(j.mentve)) ? ' · mentve: ' + new Date(j.mentve).toLocaleString('hu-HU') : '';
     const ok = await valtozasParbeszed({ cim: 'Mentés visszatöltése', forras: `${fajl.name}${mentve}`, uj: { orvosok: m.orvosok, tetelek: m.tetelek }, figy: m.figy, igenSzoveg: 'Visszatöltés',
-      egyebValtozas: m.beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '' });
+      egyebValtozas: mentesEgyeb(m) });
     if (ok) mentesAlkalmaz(m, fajl.name);
   } catch (err) {
     parbeszed({ cim: 'A mentés nem tölthető be', leiras: err instanceof FelhasznaloiHiba ? err.message : 'A fájl beolvasása nem sikerült. Válaszd a „Mentés fájlba” gombbal készült .json fájlt, és próbáld újra.' });
@@ -2256,13 +2381,19 @@ $('#importVisszaGomb').addEventListener('click', async () => {
 });
 
 /* ---------- dátum ---------- */
+const DATUM_FMT = (() => { try { return new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }); } catch (e) { return null; } })();
 function datumRajzol() {
   const mezo = $('#datumMezo'); if (!mezo) return;
+  const d = valasztottDatum();
   const mai = !valasztas.datum || valasztas.datum === datumok(new Date()).fajl;
-  mezo.value = datumok(valasztottDatum()).fajl;
+  mezo.value = datumok(d).fajl;
+  $('#datumSzoveg').textContent = (DATUM_FMT ? DATUM_FMT.format(d) : datumok(d).kijelzo) + (mai ? ' (ma)' : '');
   $('#maGomb').hidden = mai; $('#datumTipp').hidden = mai;
-  mezo.classList.toggle('nem-mai', !mai);
+  $('#datumGomb').classList.toggle('nem-mai', !mai);
 }
+$('#datumMezo').addEventListener('click', e => {
+  try { if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches) && typeof e.target.showPicker === 'function') e.target.showPicker(); } catch (er) { /* már nyitva */ }
+});
 function datumBeallit(iso) {
   const mai = datumok(new Date()).fajl;
   const uj = !iso || iso === mai || !/^\d{4}-\d{2}-\d{2}$/.test(iso) ? null : iso;
@@ -2351,7 +2482,7 @@ function ghFajlIr(ut, bajtok, uzenetSzoveg, { sha = null, keepalive = false } = 
 let arMentesIdozito = null, arMentesFut = false;
 function arMentesTartalom() {
   const n = nevesForma(adat);
-  return { alkalmazas: 'dentAl-arlista', formatum: 1, cegnev: C.cegnev, orvosok: n.orvosok, tetelek: n.tetelek, beallitasok: beall };
+  return { alkalmazas: 'dentAl-arlista', formatum: 1, cegnev: C.cegnev, orvosok: n.orvosok, emailek: n.emailek, tetelek: n.tetelek, beallitasok: beall };
 }
 function githubArakUtemez(ok = 'Árak módosítása', azonnal = false) {
   if (!ghArBe()) return;
@@ -2589,7 +2720,7 @@ async function arValtozatBetolt(ref, cimke) {
     let j; try { j = JSON.parse(szoveg); } catch (e) { throw F('A GitHubon tárolt ármentés sérült, ezért nem tölthető be. Válassz egy másik változatot.'); }
     const m = mentesErtelmez(j);
     const ok = await valtozasParbeszed({ cim: 'Árak visszatöltése a GitHubról', forras: `Mentett változat: ${cimke}`, uj: { orvosok: m.orvosok, tetelek: m.tetelek }, figy: m.figy,
-      egyebValtozas: m.beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '', igenSzoveg: 'Visszatöltés' });
+      egyebValtozas: mentesEgyeb(m), igenSzoveg: 'Visszatöltés' });
     if (ok) mentesAlkalmaz(m, `GitHub-változat (${cimke})`);
   } catch (err) {
     parbeszed({ cim: 'Az árak nem tölthetők be', leiras: err instanceof AppHiba || err instanceof FelhasznaloiHiba ? err.message : 'A betöltés nem sikerült. Próbáld újra később.' });
@@ -2824,10 +2955,13 @@ function indul() {
   $('#ujTetelGomb').innerHTML = gombTartalom('plusz', 'Új tétel');
   $('#ujOrvosGomb').innerHTML = gombTartalom('plusz', 'Új orvos');
   $('#megosztGomb').hidden = !megosztasTamogatott;
-  $('#savGombok').classList.toggle('egy', !megosztasTamogatott);
-  if (IOS && megosztasTamogatott) {              // iOS-en a megosztás a megbízható út (Mentés a Fájlokba, Nyomtatás, Mail)
-    $('#megosztGomb').className = 'gomb gomb-fo'; $('#letoltGomb').className = 'gomb gomb-masod';
-    $('#savGombok').prepend($('#megosztGomb'));
+  {                                               // iOS-en a megosztás az elsődleges (Mentés a Fájlokba, Nyomtatás, Mail)
+    const ios = IOS && megosztasTamogatott;
+    const elso = ios ? $('#megosztGomb') : $('#letoltGomb');
+    elso.className = 'gomb gomb-fo';
+    elso.innerHTML = ios ? gombTartalom('megoszt', 'Megosztás') : gombTartalom('letolt', 'PDF letöltése');
+    const harmadik = megosztasTamogatott ? (ios ? $('#letoltGomb') : $('#megosztGomb')) : null;
+    savGombokElrendez($('#savGombok'), elso, gmailBe() ? $('#gmailGomb') : null, harmadik, ios ? 'letolt' : 'megoszt', ios ? 'PDF letöltése' : 'Megosztás');
   }
   beepitettBongeszoFigyelmeztetes();
   $('#verzio').textContent = `${C.cegnev} árlista-generáló · ${VERZIO}`;
