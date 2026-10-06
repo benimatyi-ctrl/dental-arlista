@@ -38,14 +38,15 @@ Androidon az `index.html` Chrome-ban megnyitható (például a Letöltések mapp
 ## Használat
 
 1. Válaszd ki az orvost.
-2. Állítsd be a mennyiségeket a −/+ gombokkal vagy beírással. Több mint 8 tételnél kereső is megjelenik.
-3. Alul látod a kiválasztott tételek számát és az élő végösszeget.
-4. **Előnézet**: megmutatja a kész PDF-et. **PDF letöltése** / **Megosztás**: elkészíti és letölti vagy megosztja (nyomtató, e-mail, üzenetküldő).
+2. A **Dátum** mezőben alapból a mai nap áll. Ha más napra kell az árlista, itt válaszd ki; a **Ma** gomb visszaállítja.
+3. Állítsd be a mennyiségeket a −/+ gombokkal vagy beírással. Több mint 8 tételnél kereső is megjelenik.
+4. Alul látod a kiválasztott tételek számát és az élő végösszeget.
+5. **Előnézet**: megmutatja a kész PDF-et. **PDF letöltése** / **Megosztás**: elkészíti és letölti vagy megosztja (nyomtató, e-mail, üzenetküldő).
 
 Tudnivalók:
 
-- A PDF neve `Arlista_<Orvos>_<ÉÉÉÉ-HH-NN>.pdf`, a sorszáma `ÉÉÉÉHHNN-NN`, ami naponta 01-től indul.
-- Elkészítés után a mennyiségek nullázódnak, mint a makróban. A **Mennyiségek vissza** gombbal visszahozhatók.
+- A PDF neve `Arlista_<Orvos>_<ÉÉÉÉ-HH-NN>.pdf`, a sorszáma `ÉÉÉÉHHNN-NN`, ami minden napra 01-től indul. A dátum, a fájlnév, a sorszám és az érvényesség is a kiválasztott napból számolódik.
+- Elkészítés után a mennyiségek nullázódnak (és a dátum visszaáll a mai napra), mint a makróban. A **Mennyiségek vissza** gombbal visszahozhatók.
 - A PDF mindig egy A4-es oldal. Sok tételnél a betű és a sormagasság fokozatosan kisebb lesz (10 pontról legfeljebb 7,5 pontig). Ha így sem fér el, az alkalmazás szól, és nem készít PDF-et.
 
 ## Árak frissítése Excelből
@@ -62,7 +63,36 @@ Az árak a tételek és az orvosok **neve** alapján párosulnak. Ha egy nevet �
 
 ## Biztonsági mentés
 
-Az árak csak azon a telefonon, abban a böngészőben vannak tárolva. Az Árak lapon a **Mentés fájlba (JSON)** gomb letölt egy mentést, amit a **Visszatöltés fájlból** gombbal bármikor, akár másik telefonon is visszatölthetsz. Minden nagyobb változtatás után érdemes mentést készíteni, és elküldeni magadnak e-mailben.
+Az árak alapból csak azon a telefonon, abban a böngészőben vannak tárolva. Az Árak lapon a **Mentés fájlba** gomb letölt egy mentést (JSON), amit a **Visszatöltés fájlból** gombbal bármikor, akár másik telefonon is visszatölthetsz. Kényelmesebb a GitHub-mentés (lent), ami ezt magától elvégzi.
+
+## Mentés GitHubra
+
+Bekapcsolva az alkalmazás egy **privát** GitHub-tárolóba ment:
+
+- **minden elkészült PDF-et**, ide: `arlistak/<ÉÉÉÉ-HH>/<sorszám>_Arlista_<Orvos>_<dátum>.pdf`;
+- **az árakat**, minden változás után (kb. 20 másodperccel később, Excel-importnál azonnal), ide: `arak/arak.json`. Minden mentés új változat, a régiek megmaradnak.
+
+Visszakeresés az alkalmazásban:
+
+- **Mentett árlisták**: a fejléc doboz ikonja vagy az Árak lap gombja. Hónaponként csoportosítva, orvosra, dátumra vagy sorszámra kereshető. Bármelyik PDF megnézhető, letölthető vagy megosztható.
+- **Az árak korábbi változatai** (Árak lap): bármelyik korábbi árállapot visszatölthető. Betöltés előtt látszik, mi változik.
+
+Internet nélkül a PDF-ek sorba kerülnek, és a következő internetkapcsolatkor maguktól feltöltődnek. Ha több telefon menti ugyanabba a tárolóba, a napi sorszám a GitHubon már meglévő árlistákat is figyelembe veszi.
+
+### Beállítás (eszközönként egyszer)
+
+A mentések tárolója már létezik: **benimatyi-ctrl/dental-arlista-mentesek** (privát). Kell hozzá egy hozzáférési kulcs, amit csak te hozhatsz létre:
+
+1. Nyisd meg: <https://github.com/settings/personal-access-tokens/new>
+2. **Token name:** `dentÁl árlista`; **Expiration:** 1 év (lejárat előtt a GitHub e-mailt küld).
+3. **Repository access:** *Only select repositories* → `dental-arlista-mentesek`.
+4. **Permissions → Repository permissions → Contents:** *Read and write*. Más jogosultság nem kell.
+5. **Generate token**, majd másold ki a kulcsot (`github_pat_…`).
+6. Az alkalmazásban: **Árak → Mentés GitHubra**. Tároló: `benimatyi-ctrl/dental-arlista-mentesek`, kulcs: a kimásolt kulcs → **Kapcsolódás**.
+
+Ha a GitHubon már vannak mentett árak (például egy második telefonnál), az alkalmazás megkérdezi, hogy azokat töltse-e be, vagy az eszközön lévőket mentse.
+
+Biztonság: a kulcs csak azon az eszközön tárolódik, ahol megadtad, és csak ehhez az egy tárolóhoz fér hozzá, csak fájlokat írhat és olvashat vele. Ha a telefon elveszik, a kulcsot a <https://github.com/settings/personal-access-tokens> oldalon egy kattintással visszavonhatod. Az alkalmazás nyilvános tárolóba nem hajlandó menteni.
 
 ## A CONFIG átírása
 
@@ -100,7 +130,7 @@ A módosított `index.html`-t elég feltölteni: az alkalmazás megnyitáskor el
 
 - Az adatok (orvosok, tételek, árak, beállítások, napi sorszám) a böngésző `localStorage`-ében vannak.
 - A letöltött könyvtárakat az alkalmazás minden betöltéskor újra ellenőrzi (SRI). Sima `http://` címen, ahol ez nem lehetséges, nem futtatja őket; ilyenkor `https://` címen vagy fájlként nyisd meg.
-- Az `index.html` tartalombiztonsági szabályt (Content-Security-Policy) is tartalmaz: csak a saját fájlt és a két engedélyezett CDN-t (cdnjs.cloudflare.com, cdn.jsdelivr.net) éri el.
+- Az `index.html` tartalombiztonsági szabályt (Content-Security-Policy) is tartalmaz: csak a saját fájlt, a két engedélyezett CDN-t (cdnjs.cloudflare.com, cdn.jsdelivr.net) és a mentésekhez a GitHub API-t (api.github.com) éri el.
 - Ismert korlátok:
   - Az SheetJS 0.18.5-nek vannak ismert hibái (CVE-2023-30533, CVE-2024-22363), amelyek szándékosan rosszindulatú Excel-fájllal használhatók ki. Újabb javított változat csak a SheetJS saját CDN-jén van, amit a szabályok nem engednek, ezért csak saját, megbízható Excel-fájlt tölts be.
   - A pdf.js 3.11 ismert hibáját (CVE-2024-4367) az `isEvalSupported: false` beállítás kivédi, és az előnézet csak a saját magunk készítette PDF-et jeleníti meg.

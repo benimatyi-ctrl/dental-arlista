@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://api.github.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <script>
 /* =========================================================================
    CONFIG — a cég adatai és a PDF beállításai. Csak ezt a részt kell átírni.
@@ -285,6 +285,33 @@ p { margin: 0; }
 .mentve { font-size: 14px; color: var(--masodlagos); min-height: 20px; }
 .lab { color: var(--masodlagos); font-size: 13px; text-align: center; padding-top: 4px; }
 
+/* ---------- dátum, mentések, GitHub ---------- */
+.fejlec-gombok { display: flex; align-items: center; gap: 2px; }
+.ikon-gomb { width: 48px; padding: 0; justify-content: center; margin-right: 0; }
+.datum-sor { display: flex; gap: 10px; align-items: stretch; }
+.datum-sor input { flex: 1; min-width: 0; min-height: 52px; padding: 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 14px; background: var(--papir); color: var(--tinta); font: 600 17px/1.2 var(--betu); display: block; -webkit-appearance: none; appearance: none; }
+.datum-sor input::-webkit-date-and-time-value { text-align: left; }
+.datum-sor input:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
+.datum-sor input.nem-mai { border-color: var(--figy); box-shadow: 0 0 0 3px var(--figy-hatter); }
+.datum-sor .gomb { flex: none; min-width: 72px; }
+.figy-szoveg { color: var(--figy); }
+.gh-urlap { display: grid; gap: 12px; }
+.gh-urlap .mezo input { font-size: 16px; }
+.sugo summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--tinta); font-weight: 600; }
+.sugo ol { margin: 4px 0 0; padding-left: 20px; color: var(--masodlagos); font-size: 15px; display: grid; gap: 4px; }
+.sugo a { color: var(--kiemeles-szoveg); }
+.mentett-kereso { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 12px; background: var(--papir); font-size: 16px; }
+.mentett-kereso:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
+.mentett-lista { display: grid; border: 1px solid var(--vonal); border-radius: 12px; overflow: hidden; }
+.mentett-sor { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 60px; padding: 8px 12px; border: 0; border-top: 1px solid var(--vonal); background: var(--papir); text-align: left; color: var(--szoveg); }
+.mentett-sor:first-child { border-top: 0; }
+.mentett-sor strong { display: block; color: var(--tinta); font-weight: 600; }
+.mentett-sor span { display: block; font-size: 14px; color: var(--masodlagos); }
+.mentett-sor .ikon { width: 18px; height: 18px; color: var(--masodlagos); }
+.honap-cim { padding: 6px 12px; background: var(--zebra); font-size: 14px; font-weight: 600; color: var(--masodlagos); border-top: 1px solid var(--vonal); }
+.honap-cim:first-child { border-top: 0; }
+@media (hover: hover) { .mentett-sor:hover { background: var(--zebra); } }
+
 @media (min-width: 720px) { .tetel { padding-left: 18px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 </style>
@@ -295,7 +322,10 @@ p { margin: 0; }
 <header class="fejlec">
   <div class="fejlec-belso">
     <a class="logo" id="logo" href="#" aria-label="dentÁl – az árlista eleje"></a>
-    <button type="button" class="fejlec-gomb" id="nezetGomb"></button>
+    <div class="fejlec-gombok">
+      <button type="button" class="fejlec-gomb ikon-gomb" id="mentesekGomb" aria-label="Mentett árlisták" title="Mentett árlisták" hidden></button>
+      <button type="button" class="fejlec-gomb" id="nezetGomb"></button>
+    </div>
   </div>
 </header>
 
@@ -307,6 +337,15 @@ p { margin: 0; }
     <div id="orvosValaszto"></div>
     <p class="mezo-hiba" id="orvosHiba" hidden></p>
     <p class="tipp" id="orvosTipp" hidden>Válassz orvost: utána látod az egységárakat.</p>
+  </section>
+
+  <section class="blokk" aria-labelledby="datumCim">
+    <h2 class="blokk-cim" id="datumCim">Dátum</h2>
+    <div class="datum-sor">
+      <input type="date" id="datumMezo" aria-labelledby="datumCim" aria-describedby="datumTipp">
+      <button type="button" class="gomb gomb-masod" id="maGomb" hidden>Ma</button>
+    </div>
+    <p class="tipp figy-szoveg" id="datumTipp" hidden>Nem a mai dátum: ez kerül a PDF-re, a fájlnévbe és a sorszámba.</p>
   </section>
 
   <section class="blokk" aria-labelledby="tetelCim">
@@ -366,6 +405,12 @@ p { margin: 0; }
     </div>
     <input type="file" id="jsonFajl" class="lathatatlan" tabindex="-1" aria-hidden="true" accept=".json,application/json,.txt,text/plain">
     <button type="button" class="gomb-link" id="importVisszaGomb" hidden>Visszaállítás az utolsó betöltés előtti árakra</button>
+  </section>
+
+  <section class="lap" aria-labelledby="ghCim">
+    <h2 id="ghCim">Mentés GitHubra</h2>
+    <p>Az elkészült PDF-ek és az árak egy privát GitHub-tárolóba kerülnek, ahonnan bármikor, bármelyik eszközről visszakereshetők. Az árak minden változata megmarad.</p>
+    <div id="ghBeallitas" class="gh-urlap"></div>
   </section>
 
   <section class="lap" aria-labelledby="beallCim">
@@ -434,7 +479,7 @@ const ALAP_CONFIG = {
   pdfSzinesLogo: true, pdfLabjegyzet: '', ervenyessegNapok: 30, nullazasGeneralasUtan: true, cimzettElotag: 'Dr. '
 };
 const C = Object.assign({}, ALAP_CONFIG, window.CONFIG || {});
-const VERZIO = '1.1.0';
+const VERZIO = '1.2.0';
 const NBSP = '\u{00A0}';
 const MAX_MENNY = 9999;
 const MAX_AR = 99999999;                         // 99 999 999 Ft / db
@@ -506,6 +551,7 @@ const IKON = {
   jobbra: '<path d="M5 12h13.5m0 0L13 6.5m5.5 5.5L13 17.5"/>',
   figyelem: '<path d="M12 4.2 3 19.5h18L12 4.2Z"/><path d="M12 10v4.2M12 16.9v.2"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  archiv: '<path d="M3.5 5.5h17v4h-17z"/><path d="M5 9.5v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 13h4"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>'
 };
 const ikon = (n, extra = '') => `<svg class="ikon ${extra}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IKON[n]}</svg>`;
@@ -554,7 +600,7 @@ function szam(n) {                               // ezres tagolás nem törő sz
 const ft = n => szam(n) + NBSP + 'Ft';
 function datumok(d) {
   const y = d.getFullYear(), m = ket(d.getMonth() + 1), n = ket(d.getDate());
-  return { kulcs: `${y}${m}${n}`, kijelzo: `${y}.${m}.${n}.`, fajl: `${y}-${m}-${n}`, igRag: `${y}.${m}.${n}-ig` };
+  return { kulcs: `${y}${m}${n}`, kijelzo: `${y}.${m}.${n}.`, fajl: `${y}-${m}-${n}`, igRag: `${y}.${m}.${n}-ig`, ev: String(y), ho: m };
 }
 function napokkal(d, napok) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + napok); return x; }
 const kerekit = x => Math.round(x * 100) / 100;
@@ -567,7 +613,10 @@ const KULCS = {
   valasztas: 'dentAl.valasztas.v1',
   sorszam: 'dentAl.sorszam.v1',
   beall: 'dentAl.beallitasok.v1',
-  elozo: 'dentAl.betoltesElotti.v1'
+  elozo: 'dentAl.betoltesElotti.v1',
+  github: 'dentAl.github.v1',
+  ghArFuggo: 'dentAl.github.arakFuggo.v1',
+  ghArHash: 'dentAl.github.arakHash.v1'
 };
 let tarolasHibaJelezve = false;
 function nyersOlvas(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -637,7 +686,12 @@ function betoltAdatok() {
   return alap;
 }
 let adat = betoltAdatok();
-function mentAdatok() { adat.modositva = new Date().toISOString(); return ir(KULCS.adatok, adat); }
+function mentAdatok() {
+  adat.modositva = new Date().toISOString();
+  const ok = ir(KULCS.adatok, adat);
+  if (typeof githubArakUtemez === 'function') githubArakUtemez();
+  return ok;
+}
 const orvosById = id => adat.orvosok.find(o => o.id === id) || null;
 const tetelById = id => adat.tetelek.find(t => t.id === id) || null;
 const arOf = (tId, oId) => { const r = adat.arak[tId]; return r && Object.prototype.hasOwnProperty.call(r, oId) && ervenyesAr(r[oId]) ? r[oId] : null; };
@@ -648,10 +702,19 @@ function betoltValasztas() {
   for (const [k, n] of Object.entries(objektum(v.menny))) {
     if (tetelById(k) && Number.isInteger(n) && n > 0 && n <= MAX_MENNY) menny[k] = n;
   }
-  return { orvosId: orvosById(v.orvosId) ? v.orvosId : null, menny };
+  const datum = typeof v.datum === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.datum) ? v.datum : null;
+  return { orvosId: orvosById(v.orvosId) ? v.orvosId : null, menny, datum };
 }
 let valasztas = betoltValasztas();
 function mentValasztas() { ir(KULCS.valasztas, valasztas); }
+function valasztottDatum() {                     // a kiválasztott nap (alapból a mai), helyi éjfélkor
+  if (valasztas.datum) {
+    const [y, m, d] = valasztas.datum.split('-').map(Number);
+    const x = new Date(y, m - 1, d);
+    if (!isNaN(x) && x.getMonth() === m - 1) return x;
+  }
+  const most = new Date(); return new Date(most.getFullYear(), most.getMonth(), most.getDate());
+}
 function valasztasIgazit() {
   if (valasztas.orvosId && !orvosById(valasztas.orvosId)) valasztas.orvosId = null;
   if (!valasztas.orvosId && adat.orvosok.length === 1) valasztas.orvosId = adat.orvosok[0].id;   // egyetlen orvos: magától kiválasztva
@@ -665,17 +728,29 @@ const szinesLogoBe = () => typeof beall.szinesLogo === 'boolean' ? beall.szinesL
 function mentBeall() { return ir(KULCS.beall, beall); }
 
 /* ---------- napi sorszám: ÉÉÉÉHHNN-NN (memóriában is, ha a tárolás nem megy) ---------- */
-let sorszamMem = null;
-function sorszamKovetkezo(datumKulcs) {
+const sorszamMem = {};                            // napKulcs -> utolsó sorszám (ha a tárolás nem működik)
+const ghSorszamok = {};                           // napKulcs -> a GitHubon látott legnagyobb sorszám
+function sorszamNapok() {
   const s = objektum(olvas(KULCS.sorszam, null));
-  const tarolt = s.datum === datumKulcs && Number.isInteger(s.utolso) ? s.utolso : 0;
-  const mem = sorszamMem && sorszamMem.datum === datumKulcs ? sorszamMem.utolso : 0;
-  return Math.max(tarolt, mem) + 1;
+  const napok = Object.assign({}, objektum(s.napok));
+  if (typeof s.datum === 'string' && Number.isInteger(s.utolso)) napok[s.datum] = Math.max(napok[s.datum] || 0, s.utolso);   // régi formátum
+  return napok;
 }
-function sorszamFoglal(datumKulcs, n) { sorszamMem = { datum: datumKulcs, utolso: n }; ir(KULCS.sorszam, sorszamMem); }
+function sorszamKovetkezo(datumKulcs) {
+  const tarolt = sorszamNapok()[datumKulcs];
+  return Math.max(Number.isInteger(tarolt) ? tarolt : 0, sorszamMem[datumKulcs] || 0, ghSorszamok[datumKulcs] || 0) + 1;
+}
+function sorszamIr(datumKulcs, n) {
+  sorszamMem[datumKulcs] = n;
+  const napok = sorszamNapok(); napok[datumKulcs] = n;
+  const kulcsok = Object.keys(napok).sort();
+  while (kulcsok.length > 400) delete napok[kulcsok.shift()];   // a régi napok kikopnak
+  ir(KULCS.sorszam, { napok });
+}
+function sorszamFoglal(datumKulcs, n) { sorszamIr(datumKulcs, Math.max(n, sorszamNapok()[datumKulcs] || 0)); }
 function sorszamVisszavon(datumKulcs, n) {
   if (sorszamKovetkezo(datumKulcs) !== n + 1) return;   // közben újabb sorszám készült: nem vonjuk vissza
-  sorszamMem = { datum: datumKulcs, utolso: n - 1 }; ir(KULCS.sorszam, sorszamMem);
+  sorszamIr(datumKulcs, n - 1);
 }
 const sorszamSzoveg = (datumKulcs, n) => `${datumKulcs}-${n < 100 ? ket(n) : n}`;
 
@@ -798,7 +873,7 @@ async function offlineAllapot() {
 }
 async function regiGyorsitotarTorles() {
   const ervenyes = new Set(Object.values(KONYVTARAK).map(k => k.url));
-  for (const kulcs of await Tar.kulcsok()) if (!ervenyes.has(kulcs)) await Tar.torol(kulcs);
+  for (const kulcs of await Tar.kulcsok()) if (!ervenyes.has(kulcs) && !(typeof kulcs === 'string' && kulcs.startsWith('sor:'))) await Tar.torol(kulcs);
 }
 
 /* ---------- betűk: a felületen és a PDF-ben ugyanaz az IBM Plex Sans ---------- */
@@ -1083,7 +1158,9 @@ lista.addEventListener('input', e => {
 });
 lista.addEventListener('focusin', e => {
   const inp = e.target; if (!inp.classList.contains('menny')) return;
-  setTimeout(() => { try { inp.setSelectionRange(0, inp.value.length); } catch (er) { /* nincs */ } }, 0);
+  const ertek = inp.value;
+  try { inp.setSelectionRange(0, ertek.length); } catch (er) { /* nincs */ }
+  setTimeout(() => { if (inp.value === ertek) { try { inp.setSelectionRange(0, ertek.length); } catch (er) { /* nincs */ } } }, 0);   // iOS
 });
 lista.addEventListener('focusout', e => {
   const inp = e.target; if (!inp.classList.contains('menny')) return;
@@ -1423,7 +1500,7 @@ function pdfBemenet() {
   if (!orvos) return { hiba: 'orvos' };
   if (arNelkul.length) return { hiba: 'arnelkul', arNelkul, orvos };
   if (!sorok.length) return { hiba: 'ures' };
-  const most = new Date(); const dk = datumok(most); const n = sorszamKovetkezo(dk.kulcs);
+  const most = valasztottDatum(); const dk = datumok(most); const n = sorszamKovetkezo(dk.kulcs);
   const szines = szinesLogoBe();
   const b = {
     orvos: orvos.nev, sorok, osszeg: kerekit(sorok.reduce((a, s) => a + s.osszeg, 0)), datum: most, dk,
@@ -1454,7 +1531,7 @@ function generalas(b) {
   const p = generalasLanc.then(async () => {
     if (elokeszitett && elokeszitett.kulcs === b.kulcs) return elokeszitett;
     const e = await pdfGeneral(b);
-    const kesz = Object.assign({ kulcs: b.kulcs, fajlnev: fajlnev(b.orvos, b.datum), sorszam: b.sorszam, sorszamN: b.sorszamN, dk: b.dk, vegleges: false }, e);
+    const kesz = Object.assign({ kulcs: b.kulcs, fajlnev: fajlnev(b.orvos, b.datum), sorszam: b.sorszam, sorszamN: b.sorszamN, dk: b.dk, orvos: b.orvos, osszeg: b.osszeg, vegleges: false }, e);
     elokeszitett = kesz;
     savUzenetFrissit();
     return kesz;
@@ -1520,7 +1597,7 @@ function gombFoglalt(gomb, igen, szoveg) {
   else { if (gomb.dataset.eredeti) gomb.innerHTML = gomb.dataset.eredeti; gomb.removeAttribute('aria-busy'); gomb.disabled = false; }
 }
 /* a sorszám csak akkor foglalható le, ha ugyanaz a nap és közben nem készült másik árlista */
-const veglegesitheto = kesz => kesz.vegleges || (datumok(new Date()).kulcs === kesz.dk.kulcs && sorszamKovetkezo(kesz.dk.kulcs) === kesz.sorszamN);
+const veglegesitheto = kesz => kesz.vegleges || (datumok(valasztottDatum()).kulcs === kesz.dk.kulcs && sorszamKovetkezo(kesz.dk.kulcs) === kesz.sorszamN);
 function veglegesit(kesz) { if (!kesz.vegleges) { sorszamFoglal(kesz.dk.kulcs, kesz.sorszamN); kesz.vegleges = true; } }
 
 async function pdfMuvelet(mod, gomb) {
@@ -1592,10 +1669,13 @@ function megosztas(kesz, ujraKeszbol) {
 }
 function utana(kesz, mod) {
   const elozoMenny = Object.assign({}, valasztas.menny);
+  const elozoDatum = valasztas.datum;
   let nullazva = false;
-  if (nullazasBe()) { valasztas.menny = {}; mentValasztas(); listaArakFrissit(); nullazva = true; }
+  if (nullazasBe()) { valasztas.menny = {}; valasztas.datum = null; mentValasztas(); listaArakFrissit(); datumRajzol(); nullazva = true; }
   osszegFrissit();
-  keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny, nullazva, mod });
+  const ghUt = ghPdfBe() ? ghPdfUt(kesz) : null;
+  keszModMutat({ blob: kesz.blob, fajlnev: kesz.fajlnev, sorszam: kesz.sorszam, kesz, elozoMenny, elozoDatum, nullazva, mod, ghUt });
+  if (ghUt) githubPdfSorba(kesz).catch(() => {});
   tartosTarolasKeres();
 }
 
@@ -1607,6 +1687,7 @@ function keszModMutat(u) {
   $('#savKesz .pipa').innerHTML = ikon(u.megosztasraVar ? 'megoszt' : 'pipa');
   $('#keszCim').textContent = u.megosztasraVar ? 'A PDF elkészült. Koppints a Megosztás gombra.' : `${u.mod === 'megosztva' ? 'Megosztva' : 'Letöltve'} · sorszám: ${u.sorszam}`;
   $('#keszFajl').textContent = u.fajlnev;
+  keszGhFrissit();
   const mg = $('#keszMegosztGomb'), lg = $('#keszLetoltGomb');
   mg.hidden = !megosztasTamogatott;
   mg.innerHTML = gombTartalom('megoszt', 'Megosztás');
@@ -1648,8 +1729,8 @@ $('#keszLetoltGomb').addEventListener('click', () => {
 $('#keszMegnyitGomb').addEventListener('click', () => { if (utolso) megnyit(utolso.blob); });
 $('#keszVisszaGomb').addEventListener('click', () => {
   if (!utolso || !utolso.elozoMenny) return;
-  valasztas.menny = Object.assign({}, utolso.elozoMenny); valasztasIgazit();
-  keszModBezar(); listaArakFrissit(); osszegFrissit();
+  valasztas.menny = Object.assign({}, utolso.elozoMenny); valasztas.datum = utolso.elozoDatum || null; valasztasIgazit();
+  keszModBezar(); listaArakFrissit(); datumRajzol(); osszegFrissit();
   uzenet('A mennyiségek visszaálltak.');
 });
 $('#keszUjGomb').addEventListener('click', () => { keszModBezar(); osszegFrissit(); });
@@ -1669,7 +1750,7 @@ async function elonezet() {
   const gombok = [{ szoveg: 'PDF letöltése', ikon: 'letolt', tipus: megosztasTamogatott ? 'masod' : 'fo', ertek: null, kattintas: () => { pdfMuvelet('letoltes', null); } }];
   if (megosztasTamogatott) gombok.push({ szoveg: 'Megosztás', ikon: 'megoszt', tipus: 'fo', ertek: null, kattintas: () => { pdfMuvelet('megosztas', null); } });
   if (IOS && megosztasTamogatott) gombok.reverse();
-  parbeszed({ cim: 'Előnézet', leiras: `${cimzettNev(a.b.orvos)} · ${a.b.sorok.length}${NBSP}tétel · ${ft(a.b.osszeg)}`, tartalom, gombok, szeles: true, bezaroGomb: true });
+  parbeszed({ cim: 'Előnézet', leiras: `${cimzettNev(a.b.orvos)} · ${a.b.dk.kijelzo} · ${a.b.sorok.length}${NBSP}tétel · ${ft(a.b.osszeg)}`, tartalom, gombok, szeles: true, bezaroGomb: true });
   try {
     const kesz = await generalas(a.b);
     if (!dlg.open || !keret.isConnected) return;
@@ -1750,8 +1831,10 @@ let arGepelesIdozito = null;
 arTabla.addEventListener('focusin', e => {
   const i = e.target; if (!i.classList.contains('ar-mezo')) return;
   const v = arOf(i.dataset.t, i.dataset.o);
-  i.value = v == null ? '' : String(v).replace('.', ',');
-  setTimeout(() => { try { i.setSelectionRange(0, i.value.length); } catch (er) { /* nincs */ } }, 0);
+  const ertek = v == null ? '' : String(v).replace('.', ',');
+  i.value = ertek;
+  try { i.setSelectionRange(0, ertek.length); } catch (er) { /* nincs */ }
+  setTimeout(() => { if (i.value === ertek) { try { i.setSelectionRange(0, ertek.length); } catch (er) { /* nincs */ } } }, 0);   // iOS
 });
 arTabla.addEventListener('input', e => {        // gépelés közben csak az érvényes értéket mentjük; hibát a mező elhagyásakor jelzünk
   const i = e.target; if (!i.classList.contains('ar-mezo')) return;
@@ -2075,6 +2158,7 @@ function adatokFelulir(ujNeves, forrasNev) {
   adat = ellenorzottAdatok(nevesbolAdat(ujNeves)) || adat;
   mentAdatok(); arTablaRajzol(); arakValtoztak(true);
   $('#importVisszaGomb').hidden = false;
+  githubArakUtemez(`Betöltés: ${forrasNev}`, true);
   tartosTarolasKeres(true);
   uzenet(`Árak frissítve: ${adat.orvosok.length}${NBSP}orvos, ${adat.tetelek.length}${NBSP}tétel.`, { gomb: 'Visszavonás', ido: 8000, kattintas: importVisszaallit });
 }
@@ -2115,6 +2199,38 @@ $('#jsonMentesGomb').addEventListener('click', () => {
   uzenet('A mentés letöltődött. Tedd biztos helyre, például küldd el magadnak e-mailben.');
 });
 $('#jsonBetoltesGomb').addEventListener('click', () => { $('#jsonFajl').value = ''; $('#jsonFajl').click(); });
+function mentesErtelmez(j) {                       // a JSON-mentés (fájlból vagy a GitHubról) ellenőrzése
+  if (!j || j.alkalmazas !== 'dentAl-arlista' || !Array.isArray(j.orvosok) || !Array.isArray(j.tetelek)) throw F('Ez nem a dentÁl árlista mentése. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.');
+  const figy = [];
+  if (Number(j.formatum) > 1) figy.push('A mentés az alkalmazás újabb változatából származik; betöltés után ellenőrizd az árakat.');
+  const orvosok = [...new Set(j.orvosok.filter(x => typeof x === 'string' && x.trim()).map(x => x.normalize('NFC').trim()))];
+  const lattuk = new Set(); const tetelek = []; let kimaradt = 0;
+  for (const t of j.tetelek) {
+    if (!t || typeof t.nev !== 'string' || !t.nev.trim()) continue;
+    const nev = t.nev.normalize('NFC').trim(); if (lattuk.has(nev)) continue; lattuk.add(nev);
+    const arak = terkep(); const forras = objektum(t.arak);
+    for (const o of orvosok) {
+      if (!Object.prototype.hasOwnProperty.call(forras, o) || forras[o] == null) continue;
+      if (ervenyesAr(forras[o])) arak[o] = forras[o];
+      else { kimaradt++; if (kimaradt <= 5) figy.push(`${nev} · ${o}: „${String(forras[o])}” nem érvényes ár, kimarad.`); }
+    }
+    tetelek.push({ nev, arak });
+  }
+  if (kimaradt > 5) figy.push(`…és még ${kimaradt - 5} érvénytelen ár kimarad.`);
+  if (!orvosok.length || !tetelek.length) throw F('A mentésben nincs orvos vagy tétel, ezért nem tölthető be. Válassz másik mentést.');
+  const ujBeall = {};
+  const jb = objektum(j.beallitasok);
+  if (typeof jb.nullazas === 'boolean') ujBeall.nullazas = jb.nullazas;
+  if (typeof jb.szinesLogo === 'boolean') ujBeall.szinesLogo = jb.szinesLogo;
+  const beallValtozik = ('nullazas' in ujBeall && ujBeall.nullazas !== nullazasBe()) || ('szinesLogo' in ujBeall && ujBeall.szinesLogo !== szinesLogoBe());
+  return { orvosok, tetelek, figy, ujBeall, beallValtozik };
+}
+function mentesAlkalmaz(m, forrasNev) {
+  if (m.beallValtozik) { beall = Object.assign({}, beall, m.ujBeall); mentBeall(); beallRajzol(); elokeszitett = null; }
+  const d = osszevet(nevesForma(adat), { orvosok: m.orvosok, tetelek: m.tetelek });
+  if (!d.semmi) adatokFelulir({ orvosok: m.orvosok, tetelek: m.tetelek }, forrasNev);
+  else uzenet('A beállítások a mentés szerint frissültek.');
+}
 $('#jsonFajl').addEventListener('change', async e => {
   const fajl = e.target.files && e.target.files[0]; if (!fajl) return;
   try {
@@ -2122,38 +2238,11 @@ $('#jsonFajl').addEventListener('change', async e => {
     let j;
     try { j = JSON.parse(new TextDecoder('utf-8').decode(await fajlBajtok(fajl))); }
     catch (er) { throw F('Ez a fájl nem olvasható ármentésként. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.'); }
-    if (!j || j.alkalmazas !== 'dentAl-arlista' || !Array.isArray(j.orvosok) || !Array.isArray(j.tetelek)) throw F('Ez nem a dentÁl árlista mentése. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.');
-    const figy = [];
-    if (Number(j.formatum) > 1) figy.push('A mentés az alkalmazás újabb változatából származik; betöltés után ellenőrizd az árakat.');
-    const orvosok = [...new Set(j.orvosok.filter(x => typeof x === 'string' && x.trim()).map(x => x.normalize('NFC').trim()))];
-    const lattuk = new Set(); const tetelek = []; let kimaradt = 0;
-    for (const t of j.tetelek) {
-      if (!t || typeof t.nev !== 'string' || !t.nev.trim()) continue;
-      const nev = t.nev.normalize('NFC').trim(); if (lattuk.has(nev)) continue; lattuk.add(nev);
-      const arak = terkep(); const forras = objektum(t.arak);
-      for (const o of orvosok) {
-        if (!Object.prototype.hasOwnProperty.call(forras, o) || forras[o] == null) continue;
-        if (ervenyesAr(forras[o])) arak[o] = forras[o];
-        else { kimaradt++; if (kimaradt <= 5) figy.push(`${nev} · ${o}: „${String(forras[o])}” nem érvényes ár, kimarad.`); }
-      }
-      tetelek.push({ nev, arak });
-    }
-    if (kimaradt > 5) figy.push(`…és még ${kimaradt - 5} érvénytelen ár kimarad.`);
-    if (!orvosok.length || !tetelek.length) throw F('A mentésben nincs orvos vagy tétel, ezért nem tölthető be. Válassz másik mentést.');
-    const ujBeall = {};
-    const jb = objektum(j.beallitasok);
-    if (typeof jb.nullazas === 'boolean') ujBeall.nullazas = jb.nullazas;
-    if (typeof jb.szinesLogo === 'boolean') ujBeall.szinesLogo = jb.szinesLogo;
-    const beallValtozik = ('nullazas' in ujBeall && ujBeall.nullazas !== nullazasBe()) || ('szinesLogo' in ujBeall && ujBeall.szinesLogo !== szinesLogoBe());
+    const m = mentesErtelmez(j);
     const mentve = j.mentve && !isNaN(Date.parse(j.mentve)) ? ' · mentve: ' + new Date(j.mentve).toLocaleString('hu-HU') : '';
-    const ok = await valtozasParbeszed({ cim: 'Mentés visszatöltése', forras: `${fajl.name}${mentve}`, uj: { orvosok, tetelek }, figy, igenSzoveg: 'Visszatöltés',
-      egyebValtozas: beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '' });
-    if (ok) {
-      if (beallValtozik) { beall = Object.assign({}, beall, ujBeall); mentBeall(); beallRajzol(); elokeszitett = null; }
-      const d = osszevet(nevesForma(adat), { orvosok, tetelek });
-      if (!d.semmi) adatokFelulir({ orvosok, tetelek }, fajl.name);
-      else uzenet('A beállítások a mentés szerint frissültek.');
-    }
+    const ok = await valtozasParbeszed({ cim: 'Mentés visszatöltése', forras: `${fajl.name}${mentve}`, uj: { orvosok: m.orvosok, tetelek: m.tetelek }, figy: m.figy, igenSzoveg: 'Visszatöltés',
+      egyebValtozas: m.beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '' });
+    if (ok) mentesAlkalmaz(m, fajl.name);
   } catch (err) {
     parbeszed({ cim: 'A mentés nem tölthető be', leiras: err instanceof FelhasznaloiHiba ? err.message : 'A fájl beolvasása nem sikerült. Válaszd a „Mentés fájlba” gombbal készült .json fájlt, és próbáld újra.' });
   } finally { e.target.value = ''; }
@@ -2165,6 +2254,25 @@ $('#importVisszaGomb').addEventListener('click', async () => {
   const ok = await megerosites('Visszaállítás', `Az árak visszaállnak a legutóbbi betöltés előtti állapotra${mikor}. A mostani árak felülíródnak.`, 'Visszaállítás');
   if (ok) importVisszaallit();
 });
+
+/* ---------- dátum ---------- */
+function datumRajzol() {
+  const mezo = $('#datumMezo'); if (!mezo) return;
+  const mai = !valasztas.datum || valasztas.datum === datumok(new Date()).fajl;
+  mezo.value = datumok(valasztottDatum()).fajl;
+  $('#maGomb').hidden = mai; $('#datumTipp').hidden = mai;
+  mezo.classList.toggle('nem-mai', !mai);
+}
+function datumBeallit(iso) {
+  const mai = datumok(new Date()).fajl;
+  const uj = !iso || iso === mai || !/^\d{4}-\d{2}-\d{2}$/.test(iso) ? null : iso;
+  if (uj === valasztas.datum) { datumRajzol(); return; }
+  valasztas.datum = uj; mentValasztas();
+  keszModBezar(); savIdeiglenesTorol(); datumRajzol(); osszegFrissit(); ghSorszamFrissit();
+}
+$('#datumMezo').addEventListener('change', e => datumBeallit(e.target.value));
+$('#maGomb').addEventListener('click', () => { datumBeallit(null); $('#datumMezo').focus({ preventScroll: true }); });
+$('#mentesekGomb').addEventListener('click', () => mentettArlistak());
 
 /* ---------- beállítások ---------- */
 function beallRajzol() {
@@ -2191,6 +2299,416 @@ async function offlineRajzol() {
 }
 
 /* ======================================================================
+   GitHub-mentés (privát tárolóba): elkészült PDF-ek és az árak változatai
+   ====================================================================== */
+const GH_API = 'https://api.github.com';
+const GH_AR_UT = 'arak/arak.json';
+let gb = objektum(olvas(KULCS.github, null));    // { tarolo, token, ag, pdfMentes, arMentes }
+const ghKesz = () => !!(gb.tarolo && gb.token);
+const ghPdfBe = () => ghKesz() && gb.pdfMentes !== false;
+const ghArBe = () => ghKesz() && gb.arMentes !== false;
+const ghAg = () => gb.ag || 'main';
+let ghUtolsoHiba = null;
+class GhHiba extends AppHiba { constructor(szoveg, statusz) { super(szoveg); this.statusz = statusz; } }
+const utKodol = ut => ut.split('/').map(encodeURIComponent).join('/');
+function egyszeruHash(s) {                       // FNV-1a: csak a változás felismeréséhez
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16) + ':' + s.length;
+}
+async function gh(ut, { method = 'GET', body = null, nyers = false, keepalive = false, sajat = null } = {}) {
+  const g = sajat || gb;
+  if (!(g.tarolo && g.token)) throw new GhHiba('A GitHub-mentés nincs beállítva. Állítsd be az Árak lapon.', 0);
+  let v;
+  try {
+    v = await fetch(`${GH_API}/repos/${g.tarolo}${ut}`, {
+      method, cache: 'no-store', keepalive, credentials: 'omit',
+      headers: Object.assign({
+        Authorization: `Bearer ${g.token}`, 'X-GitHub-Api-Version': '2022-11-28',
+        Accept: nyers ? 'application/vnd.github.raw' : 'application/vnd.github+json'
+      }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (e) { throw new GhHiba('A GitHub most nem érhető el (nincs internet?). Próbáld újra később.', -1); }
+  if (v.ok) return v;
+  if (v.status === 401) throw new GhHiba('A GitHub-kulcs érvénytelen vagy lejárt. Adj meg új kulcsot az Árak lapon, a „Mentés GitHubra” résznél.', 401);
+  if (v.status === 403 && v.headers.get('x-ratelimit-remaining') === '0') throw new GhHiba('A GitHub átmenetileg korlátozza a kéréseket. Próbáld újra egy óra múlva.', 429);
+  if (v.status === 403) throw new GhHiba('A GitHub-kulcsnak nincs ehhez joga. A kulcsnál a „Contents” jogosultság legyen „Read and write”, és a kulcs férjen hozzá a tárolóhoz.', 403);
+  if (v.status === 404) throw new GhHiba('Nem található: rossz a tároló neve, vagy a kulcs nem fér hozzá a tárolóhoz.', 404);
+  throw new GhHiba(`A GitHub hibát jelzett (${v.status}). Próbáld újra később.`, v.status);
+}
+async function ghFajlSha(ut) {
+  try { const v = await gh(`/contents/${utKodol(ut)}?ref=${encodeURIComponent(ghAg())}`); return (await v.json()).sha || null; }
+  catch (e) { if (e.statusz === 404) return null; throw e; }
+}
+function ghFajlIr(ut, bajtok, uzenetSzoveg, { sha = null, keepalive = false } = {}) {
+  const body = { message: uzenetSzoveg, content: base64(bajtok), branch: ghAg() };
+  if (sha) body.sha = sha;
+  return gh(`/contents/${utKodol(ut)}`, { method: 'PUT', body, keepalive });
+}
+
+/* ---------- árak: egyetlen fájl (arak/arak.json), minden mentés új változat a tároló történetében ---------- */
+let arMentesIdozito = null, arMentesFut = false;
+function arMentesTartalom() {
+  const n = nevesForma(adat);
+  return { alkalmazas: 'dentAl-arlista', formatum: 1, cegnev: C.cegnev, orvosok: n.orvosok, tetelek: n.tetelek, beallitasok: beall };
+}
+function githubArakUtemez(ok = 'Árak módosítása', azonnal = false) {
+  if (!ghArBe()) return;
+  ir(KULCS.ghArFuggo, ok);
+  clearTimeout(arMentesIdozito);
+  arMentesIdozito = setTimeout(() => { githubArakFeltolt().catch(() => {}); }, azonnal ? 300 : 20000);
+  ghAllapotRajzol();
+}
+async function githubArakFeltolt({ keepalive = false, kezi = false } = {}) {
+  if (!ghKesz() || arMentesFut) return false;
+  const ok = olvas(KULCS.ghArFuggo, null);
+  if (!ok && !kezi) return false;
+  if (!kezi && navigator.onLine === false) { ghAllapotRajzol(); return false; }
+  arMentesFut = true;
+  try {
+    const t = arMentesTartalom();
+    const alap = JSON.stringify(t);
+    const hash = egyszeruHash(alap);
+    if (!kezi && olvas(KULCS.ghArHash, null) === hash) { torolKulcs(KULCS.ghArFuggo); return true; }
+    const szoveg = JSON.stringify(Object.assign({ mentve: new Date().toISOString() }, t), null, 2);
+    const bajtok = new TextEncoder().encode(szoveg).buffer;
+    const uzenetSzoveg = `${ok || 'Árak mentése'} – ${adat.orvosok.length} orvos, ${adat.tetelek.length} tétel`;
+    let sha = await ghFajlSha(GH_AR_UT);
+    try { await ghFajlIr(GH_AR_UT, bajtok, uzenetSzoveg, { sha, keepalive }); }
+    catch (e) {
+      if (e.statusz !== 409 && e.statusz !== 422) throw e;
+      sha = await ghFajlSha(GH_AR_UT);           // közben máshonnan is mentettek: a legfrissebbre írunk rá
+      await ghFajlIr(GH_AR_UT, bajtok, uzenetSzoveg, { sha });
+    }
+    ir(KULCS.ghArHash, hash); torolKulcs(KULCS.ghArFuggo); ghUtolsoHiba = null;
+    return true;
+  } catch (e) { ghUtolsoHiba = e; throw e; }
+  finally { arMentesFut = false; ghAllapotRajzol(); }
+}
+
+/* ---------- PDF-ek: sorba kerülnek (IndexedDB), és ha van internet, feltöltődnek ---------- */
+const ghMemoriaSor = [];
+const ghAllapotok = new Map();                    // eredeti út -> 'kesz'
+let ghSorFut = false;
+function ghPdfUt(kesz) { return `arlistak/${kesz.dk.ev}-${kesz.dk.ho}/${kesz.sorszam}_${kesz.fajlnev}`; }
+async function githubPdfSorba(kesz) {
+  if (!ghPdfBe()) return null;
+  const ut = ghPdfUt(kesz);
+  const tetel = { ut, uzenet: `Árlista ${kesz.sorszam} – ${cimzettNev(kesz.orvos)} – ${ft(kesz.osszeg)}`, ido: Date.now(), bajtok: await kesz.blob.arrayBuffer() };
+  if (!(await Tar.put('sor:' + ut, tetel))) ghMemoriaSor.push(tetel);
+  ghSorszamHozzaad(ut);
+  ghSorFeldolgoz();
+  return ut;
+}
+async function ghSorTetelek() {
+  const r = [];
+  for (const k of await Tar.kulcsok()) {
+    if (typeof k !== 'string' || !k.startsWith('sor:')) continue;
+    const t = await Tar.get(k); if (t && t.bajtok) r.push({ k, t });
+  }
+  for (const t of ghMemoriaSor) r.push({ k: null, t });
+  return r.sort((a, b) => a.t.ido - b.t.ido);
+}
+async function ghSorFeldolgoz() {
+  if (ghSorFut || !ghKesz()) return;
+  if (navigator.onLine === false) { ghAllapotRajzol(); keszGhFrissit(); return; }
+  ghSorFut = true; ghAllapotRajzol(); keszGhFrissit();
+  try {
+    for (const { k, t } of await ghSorTetelek()) {
+      let ut = t.ut;
+      for (let proba = 2; ; proba++) {             // ha már van ilyen nevű fájl, sorszámozott névvel mentjük
+        try { await ghFajlIr(ut, t.bajtok, t.uzenet); break; }
+        catch (e) { if (e.statusz === 422 && proba < 9) { ut = t.ut.replace(/\.pdf$/i, `_${proba}.pdf`); continue; } throw e; }
+      }
+      if (k) await Tar.torol(k); else ghMemoriaSor.splice(ghMemoriaSor.indexOf(t), 1);
+      ghAllapotok.set(t.ut, 'kesz'); ghSorszamHozzaad(ut); ghUtolsoHiba = null;
+      ghHonapCache.clear(); keszGhFrissit();
+    }
+  } catch (e) { ghUtolsoHiba = e; }
+  finally { ghSorFut = false; ghAllapotRajzol(); keszGhFrissit(); }
+}
+function keszGhFrissit() {
+  if (!utolso || !utolso.ghUt) return;
+  let allapot;
+  if (ghAllapotok.get(utolso.ghUt) === 'kesz') allapot = 'GitHubra mentve';
+  else if (navigator.onLine === false) allapot = 'GitHub: internetre vár';
+  else if (ghUtolsoHiba && !ghSorFut) allapot = 'GitHub: nem sikerült, később újrapróbálom';
+  else allapot = 'mentés GitHubra…';
+  $('#keszFajl').textContent = `${utolso.fajlnev} · ${allapot}`;
+}
+
+/* ---------- a sorszám a GitHubon már meglévő árlistákat is figyelembe veszi (több eszköz esetén) ---------- */
+const ghHonapCache = new Map();                   // 'ÉÉÉÉ-HH' -> { ido, nevek }
+async function ghHonapNevek(ev, ho) {
+  const kulcs = `${ev}-${ho}`; const c = ghHonapCache.get(kulcs);
+  if (c && Date.now() - c.ido < 60000) return c.nevek;
+  let nevek = [];
+  try {
+    const v = await gh(`/contents/${utKodol('arlistak/' + kulcs)}?ref=${encodeURIComponent(ghAg())}`);
+    const d = await v.json();
+    if (Array.isArray(d)) nevek = d.filter(x => x.type === 'file').map(x => x.name);
+  } catch (e) { if (e.statusz !== 404) throw e; }
+  ghHonapCache.set(kulcs, { ido: Date.now(), nevek });
+  return nevek;
+}
+function ghSorszamHozzaad(ut) {
+  const m = String(ut).match(/(\d{8})-(\d+)_[^/]*$/);
+  if (m) ghSorszamok[m[1]] = Math.max(ghSorszamok[m[1]] || 0, parseInt(m[2], 10));
+}
+async function ghSorszamFrissit() {
+  if (!ghPdfBe() || navigator.onLine === false) return;
+  const dk = datumok(valasztottDatum());
+  const elotte = ghSorszamok[dk.kulcs] || 0;
+  try { (await ghHonapNevek(dk.ev, dk.ho)).forEach(ghSorszamHozzaad); } catch (e) { return; }
+  if ((ghSorszamok[dk.kulcs] || 0) !== elotte) osszegFrissit();
+}
+
+/* ---------- Mentett árlisták: lista, keresés, előnézet, letöltés, megosztás ---------- */
+function pdfNevErtelmez(ut) {
+  const nev = ut.split('/').pop();
+  const m = nev.match(/^(\d{4})(\d{2})(\d{2})-(\d+)_Arlista_(.+)_(\d{4}-\d{2}-\d{2})(?:_\d+)?\.pdf$/i);
+  if (!m) return { ut, nev, letoltNev: nev, cim: nev, al: '', rendez: '0_' + nev, honap: ut.split('/')[1] || '', kereso: norm(nev) };
+  const orvos = m[5].replace(/_/g, ' ');
+  const datum = `${m[1]}.${m[2]}.${m[3]}.`, sorszam = `${m[1]}${m[2]}${m[3]}-${m[4]}`;
+  return {
+    ut, nev, letoltNev: nev.replace(/^\d{8}-\d+_/, ''), cim: cimzettNev(orvos), al: `${datum} · sorszám: ${sorszam}`,
+    rendez: `${m[1]}${m[2]}${m[3]}-${m[4].padStart(5, '0')}`, honap: `${m[1]}-${m[2]}`, kereso: norm(`${orvos} ${datum} ${sorszam} ${m[6]}`)
+  };
+}
+const HONAPOK = ['január', 'február', 'március', 'április', 'május', 'június', 'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
+const honapNev = h => { const [e, m] = h.split('-'); return m ? `${e}. ${HONAPOK[parseInt(m, 10) - 1] || m}` : h; };
+let mentettCache = null;
+async function mentettArlistak() {
+  if (!ghKesz()) { location.hash = '#arak'; return; }
+  const doboz = el('div', { class: 'mentett-lista', 'aria-live': 'polite' }, el('div', { class: 'elonezet-allapot', style: 'padding:14px' }, el('span', { class: 'porgo', 'aria-hidden': 'true' }), el('span', { text: 'Betöltés a GitHubról…' })));
+  const kereso = el('input', { type: 'search', class: 'mentett-kereso', placeholder: 'Keresés: orvos, dátum vagy sorszám', 'aria-label': 'Keresés a mentett árlisták között', autocomplete: 'off', enterkeyhint: 'search' });
+  const tartalom = el('div', { style: 'display:grid;gap:12px' }, kereso, doboz);
+  parbeszed({ cim: 'Mentett árlisták', leiras: `GitHub: ${gb.tarolo}`, tartalom, gombok: [], szeles: true, bezaroGomb: true });
+  let elemek;
+  try {
+    let fa = { tree: [] };
+    try { fa = await (await gh(`/git/trees/${encodeURIComponent(ghAg())}?recursive=1`)).json(); }
+    catch (e) { if (e.statusz !== 409 && e.statusz !== 404) throw e; }   // üres tároló
+    elemek = (fa.tree || []).filter(x => x.type === 'blob' && /^arlistak\/.+\.pdf$/i.test(x.path)).map(x => pdfNevErtelmez(x.path));
+    for (const { t } of await ghSorTetelek()) { const e = pdfNevErtelmez(t.ut); e.sorban = t; e.al += ' · feltöltésre vár'; elemek.push(e); }
+    elemek.sort((a, b) => b.rendez.localeCompare(a.rendez));
+    mentettCache = elemek;
+  } catch (e) {
+    if (!doboz.isConnected) return;
+    doboz.innerHTML = ''; doboz.append(el('div', { class: 'hibadoboz', style: 'margin:12px', text: e instanceof AppHiba ? e.message : 'A lista nem tölthető be. Próbáld újra később.' }));
+    return;
+  }
+  let limit = 60;
+  const rajzol = () => {
+    if (!doboz.isConnected) return;
+    const q = norm(kereso.value);
+    const talalat = elemek.filter(x => !q || x.kereso.includes(q));
+    doboz.innerHTML = '';
+    if (!elemek.length) { doboz.append(el('p', { class: 'halvany', style: 'padding:14px', text: 'Még nincs mentett árlista. Az elkészült PDF-ek ide kerülnek.' })); return; }
+    if (!talalat.length) { doboz.append(el('p', { class: 'halvany', style: 'padding:14px', text: `Nincs találat erre: „${kereso.value.trim()}”.` })); return; }
+    let honap = '';
+    for (const x of talalat.slice(0, limit)) {
+      if (x.honap !== honap) { honap = x.honap; doboz.append(el('div', { class: 'honap-cim', text: honapNev(honap) })); }
+      const sor = el('button', { type: 'button', class: 'mentett-sor', html: `<div><strong>${esc(x.cim)}</strong><span>${esc(x.al)}</span></div>${ikon('jobbra')}` });
+      sor.addEventListener('click', () => mentettPdf(x));
+      doboz.append(sor);
+    }
+    if (talalat.length > limit) {
+      const tobb = el('button', { type: 'button', class: 'gomb-link', style: 'margin:6px 12px', text: `Továbbiak (még ${talalat.length - limit})` });
+      tobb.addEventListener('click', () => { limit += 60; rajzol(); });
+      doboz.append(tobb);
+    }
+  };
+  kereso.addEventListener('input', rajzol);
+  rajzol();
+}
+async function mentettPdf(x) {
+  const keret = el('div', { class: 'elonezet-keret' }, el('div', { class: 'elonezet-allapot' }, el('span', { class: 'porgo', 'aria-hidden': 'true' }), el('span', { text: 'Letöltés a GitHubról…' })));
+  const vissza = el('button', { type: 'button', class: 'gomb-link', html: `${ikon('vissza')}<span>Vissza a listához</span>`, style: 'display:inline-flex;align-items:center;gap:4px;justify-self:start' });
+  vissza.addEventListener('click', () => mentettArlistak());
+  const megnyitLink = el('button', { type: 'button', class: 'gomb-link', text: 'Megnyitás új lapon', disabled: true });
+  let blob = null;
+  megnyitLink.addEventListener('click', () => { if (blob) megnyit(blob); });
+  const gombok = [{ szoveg: 'Letöltés', ikon: 'letolt', tipus: megosztasTamogatott ? 'masod' : 'fo', id: 'mentettLetolt', kattintas: () => { if (blob) letolt(blob, x.letoltNev); return false; } }];
+  if (megosztasTamogatott) gombok.push({ szoveg: 'Megosztás', ikon: 'megoszt', tipus: 'fo', id: 'mentettMegoszt', kattintas: () => { if (blob) fajlMegoszt(blob, x.letoltNev); return false; } });
+  if (IOS && megosztasTamogatott) gombok.reverse();
+  parbeszed({ cim: x.cim, leiras: x.al, tartalom: el('div', { style: 'display:grid;gap:10px' }, vissza, keret, megnyitLink), gombok, szeles: true, bezaroGomb: true });
+  const gombokEl = $$('#mentettLetolt, #mentettMegoszt'); gombokEl.forEach(g => { g.disabled = true; });
+  try {
+    if (x.sorban) blob = new Blob([x.sorban.bajtok], { type: 'application/pdf' });
+    else blob = new Blob([await (await gh(`/contents/${utKodol(x.ut)}?ref=${encodeURIComponent(ghAg())}`, { nyers: true })).arrayBuffer()], { type: 'application/pdf' });
+    if (!keret.isConnected) return;
+    gombokEl.forEach(g => { g.disabled = false; }); megnyitLink.disabled = false;
+    await pdfRajzol(blob, keret);
+  } catch (e) {
+    if (!keret.isConnected) return;
+    keret.innerHTML = '';
+    keret.append(el('div', { class: 'hibadoboz', text: e instanceof AppHiba ? (e instanceof OfflineHiba ? 'Az előnézethez szükséges fájl még nincs letöltve erre az eszközre; a PDF-et így is letöltheted.' : e.message) : 'A PDF nem tölthető be. Próbáld újra később.' }));
+  }
+}
+function fajlMegoszt(blob, nev) {                // a már meglévő PDF megosztása, a koppintáson belül
+  const fajl = new File([blob], nev, { type: 'application/pdf' });
+  let tud = false;
+  try { tud = !!(navigator.canShare && navigator.canShare({ files: [fajl] })); } catch (e) { tud = false; }
+  if (!tud) { letolt(blob, nev); uzenet('Ezen az eszközön a megosztás nem érhető el, ezért a PDF letöltődött.'); return; }
+  navigator.share({ files: [fajl], title: nev }).catch(err => {
+    if (err && (err.name === 'AbortError' || err.name === 'InvalidStateError')) return;
+    uzenet('A megosztás nem sikerült. Töltsd le a PDF-et, és csatold kézzel.', { hiba: true, ido: 8000 });
+  });
+}
+
+/* ---------- az árak korábbi változatai ---------- */
+async function arValtozatok() {
+  const doboz = el('div', { class: 'mentett-lista' }, el('div', { class: 'elonezet-allapot', style: 'padding:14px' }, el('span', { class: 'porgo', 'aria-hidden': 'true' }), el('span', { text: 'Betöltés a GitHubról…' })));
+  parbeszed({ cim: 'Az árak mentett változatai', leiras: `GitHub: ${gb.tarolo} · a legfrissebb van legfelül`, tartalom: doboz, gombok: [], szeles: true, bezaroGomb: true });
+  let commitok = [];
+  try {
+    try { commitok = await (await gh(`/commits?path=${encodeURIComponent(GH_AR_UT)}&sha=${encodeURIComponent(ghAg())}&per_page=60`)).json(); }
+    catch (e) { if (e.statusz !== 409 && e.statusz !== 404) throw e; }
+  } catch (e) {
+    if (!doboz.isConnected) return;
+    doboz.innerHTML = ''; doboz.append(el('div', { class: 'hibadoboz', style: 'margin:12px', text: e instanceof AppHiba ? e.message : 'A változatok nem tölthetők be. Próbáld újra később.' }));
+    return;
+  }
+  if (!doboz.isConnected) return;
+  doboz.innerHTML = '';
+  if (!Array.isArray(commitok) || !commitok.length) { doboz.append(el('p', { class: 'halvany', style: 'padding:14px', text: 'Még nincs mentett ár a GitHubon.' })); return; }
+  commitok.forEach((c, i) => {
+    const mikor = new Date(c.commit && c.commit.author && c.commit.author.date || Date.now()).toLocaleString('hu-HU');
+    const leiras = String((c.commit && c.commit.message) || '').split('\n')[0];
+    const sor = el('button', { type: 'button', class: 'mentett-sor', html: `<div><strong>${esc(mikor)}${i === 0 ? ' · legfrissebb' : ''}</strong><span>${esc(leiras)}</span></div>${ikon('jobbra')}` });
+    sor.addEventListener('click', () => arValtozatBetolt(c.sha, mikor));
+    doboz.append(sor);
+  });
+}
+async function arValtozatBetolt(ref, cimke) {
+  folyamatbanJelzes('Árak betöltése a GitHubról');
+  try {
+    const szoveg = await (await gh(`/contents/${utKodol(GH_AR_UT)}?ref=${encodeURIComponent(ref)}`, { nyers: true })).text();
+    let j; try { j = JSON.parse(szoveg); } catch (e) { throw F('A GitHubon tárolt ármentés sérült, ezért nem tölthető be. Válassz egy másik változatot.'); }
+    const m = mentesErtelmez(j);
+    const ok = await valtozasParbeszed({ cim: 'Árak visszatöltése a GitHubról', forras: `Mentett változat: ${cimke}`, uj: { orvosok: m.orvosok, tetelek: m.tetelek }, figy: m.figy,
+      egyebValtozas: m.beallValtozik ? 'A beállítások (mennyiségek nullázása, logó) a mentés szerint változnak.' : '', igenSzoveg: 'Visszatöltés' });
+    if (ok) mentesAlkalmaz(m, `GitHub-változat (${cimke})`);
+  } catch (err) {
+    parbeszed({ cim: 'Az árak nem tölthetők be', leiras: err instanceof AppHiba || err instanceof FelhasznaloiHiba ? err.message : 'A betöltés nem sikerült. Próbáld újra később.' });
+  }
+}
+
+/* ---------- beállítás az Árak lapon ---------- */
+function ghAllapotRajzol() {
+  const hely = $('#ghAllapot'); if (!hely) return;
+  if (!ghKesz()) { hely.hidden = true; return; }
+  hely.hidden = false;
+  ghSorTetelek().then(sor => {
+    const fuggo = olvas(KULCS.ghArFuggo, null);
+    const db = sor.length;
+    let szoveg, osztaly;
+    if (ghUtolsoHiba && (db || fuggo)) { szoveg = `Nem sikerült feltölteni: ${ghUtolsoHiba.message}`; osztaly = 'var'; }
+    else if (db || fuggo) {
+      const reszek = [];
+      if (db) reszek.push(`${db}${NBSP}árlista`);
+      if (fuggo) reszek.push('az árak');
+      szoveg = `Feltöltésre vár: ${reszek.join(' és ')}${navigator.onLine === false ? ' (nincs internet)' : ''}.`; osztaly = 'var';
+    } else { szoveg = 'Minden fel van töltve.'; osztaly = 'jo'; }
+    hely.className = 'allapot-sor ' + osztaly;
+    hely.innerHTML = ikon(osztaly === 'jo' ? 'pipa' : 'figyelem') + `<span>${esc(szoveg)}</span>`;
+  }).catch(() => {});
+}
+function ghRajzol() {
+  const hely = $('#ghBeallitas'); if (!hely) return;
+  hely.innerHTML = '';
+  $('#mentesekGomb').hidden = !ghKesz();
+  if (!ghKesz()) {
+    const tarolo = el('input', { id: 'ghTarolo', type: 'text', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', placeholder: 'felhasznalo/tarolo', value: gb.tarolo || '' });
+    const token = el('input', { id: 'ghToken', type: 'password', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', placeholder: 'github_pat_…' });
+    const hiba = el('p', { class: 'mezo-hiba', hidden: true });
+    const gomb = el('button', { type: 'button', class: 'gomb gomb-fo', text: 'Kapcsolódás' });
+    gomb.addEventListener('click', () => ghKapcsolodas(tarolo, token, gomb, hiba));
+    const sugo = el('details', { class: 'sugo' }, el('summary', { text: 'Hogyan kapok kulcsot?' }),
+      el('ol', null,
+        el('li', { html: 'Nyisd meg: <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.' }),
+        el('li', { text: 'Token name: „dentÁl árlista”; Expiration: 1 év.' }),
+        el('li', { text: 'Repository access: Only select repositories → a mentések privát tárolója.' }),
+        el('li', { text: 'Permissions → Repository permissions → Contents: Read and write.' }),
+        el('li', { text: 'Generate token, majd másold be ide a kulcsot. A kulcs csak ezen az eszközön tárolódik.' })));
+    hely.append(
+      el('div', { class: 'mezo' }, el('label', { for: 'ghTarolo', text: 'Privát tároló (felhasználó/tároló)' }), tarolo),
+      el('div', { class: 'mezo' }, el('label', { for: 'ghToken', text: 'Hozzáférési kulcs (token)' }), token),
+      hiba, el('div', { class: 'gombsor' }, gomb), sugo);
+    return;
+  }
+  const pdfK = el('input', { type: 'checkbox', id: 'ghPdfMentes', checked: gb.pdfMentes !== false });
+  const arK = el('input', { type: 'checkbox', id: 'ghArMentes', checked: gb.arMentes !== false });
+  pdfK.addEventListener('change', () => { gb = Object.assign({}, gb, { pdfMentes: pdfK.checked }); ir(KULCS.github, gb); mentveJelez(true); });
+  arK.addEventListener('change', () => { gb = Object.assign({}, gb, { arMentes: arK.checked }); ir(KULCS.github, gb); mentveJelez(true); if (arK.checked) githubArakUtemez('Árak mentése', true); });
+  const listaG = el('button', { type: 'button', class: 'gomb gomb-fo', html: gombTartalom('archiv', 'Mentett árlisták') });
+  listaG.addEventListener('click', mentettArlistak);
+  const valtG = el('button', { type: 'button', class: 'gomb gomb-masod', text: 'Az árak korábbi változatai' });
+  valtG.addEventListener('click', arValtozatok);
+  const mostG = el('button', { type: 'button', class: 'gomb gomb-masod', text: 'Árak mentése most' });
+  mostG.addEventListener('click', async () => {
+    gombFoglalt(mostG, true, 'Mentés…');
+    try { ir(KULCS.ghArFuggo, 'Kézi mentés'); await githubArakFeltolt({ kezi: true }); await ghSorFeldolgoz(); uzenet('Az árak felkerültek a GitHubra.'); }
+    catch (e) { uzenet(e instanceof AppHiba ? e.message : 'A mentés nem sikerült. Próbáld újra később.', { hiba: true, ido: 8000 }); }
+    finally { gombFoglalt(mostG, false); }
+  });
+  const bont = el('button', { type: 'button', class: 'gomb-link veszely', text: 'Kapcsolat bontása ezen az eszközön' });
+  bont.addEventListener('click', async () => {
+    const ok = await megerosites('Kapcsolat bontása', 'A kulcs törlődik erről az eszközről. A GitHubon lévő mentések megmaradnak; később újra kapcsolódhatsz.', 'Bontás', true);
+    if (!ok) return;
+    gb = { tarolo: gb.tarolo }; ir(KULCS.github, gb); ghRajzol();
+    uzenet('A GitHub-kapcsolat bontva ezen az eszközön.');
+  });
+  hely.append(
+    el('div', { class: 'allapot-sor jo', html: ikon('pipa') + `<span>Kapcsolódva: ${esc(gb.tarolo)} (privát)</span>` }),
+    el('div', { id: 'ghAllapot', class: 'allapot-sor', hidden: true }),
+    el('label', { class: 'kapcsolo' }, pdfK, el('span', { text: 'Az elkészült PDF-ek mentése' })),
+    el('label', { class: 'kapcsolo' }, arK, el('span', { text: 'Az árak mentése minden változás után' })),
+    el('div', { class: 'gombsor' }, listaG, valtG, mostG),
+    el('div', null, bont));
+  ghAllapotRajzol();
+}
+async function ghKapcsolodas(taroloMezo, tokenMezo, gomb, hiba) {
+  const hibaMutat = s => { hiba.innerHTML = ikon('figyelem') + `<span>${esc(s)}</span>`; hiba.hidden = false; };
+  hiba.hidden = true;
+  const tarolo = taroloMezo.value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+  const token = tokenMezo.value.trim();
+  if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(tarolo)) { hibaMutat('A tároló neve „felhasználó/tároló” alakú legyen, például benimatyi-ctrl/dental-arlista-mentesek.'); taroloMezo.focus(); return; }
+  if (!token) { hibaMutat('Másold be a hozzáférési kulcsot (token).'); tokenMezo.focus(); return; }
+  gombFoglalt(gomb, true, 'Ellenőrzés…');
+  try {
+    const r = await (await gh('', { sajat: { tarolo, token } })).json();
+    if (!r.private) throw new GhHiba('Ez a tároló nyilvános, így bárki láthatná az árakat. Adj meg privát tárolót.', 0);
+    if (r.permissions && r.permissions.push === false) throw new GhHiba('Ehhez a tárolóhoz nincs írási jogod. Válassz olyan tárolót, amelybe írhatsz.', 0);
+    gb = { tarolo: r.full_name || tarolo, token, ag: r.default_branch || 'main', pdfMentes: true, arMentes: true };
+    if (!ir(KULCS.github, gb)) throw new GhHiba('A beállítás nem menthető ezen az eszközön (például privát böngészésben).', 0);
+    tokenMezo.value = '';
+    ghRajzol();
+    // ha a GitHubon már vannak árak, megkérdezzük, melyik legyen érvényes
+    let vanTavoli = false;
+    try { vanTavoli = !!(await ghFajlSha(GH_AR_UT)); } catch (e) { vanTavoli = false; }
+    if (vanTavoli) {
+      const valasz = await parbeszed({
+        cim: 'Vannak már árak a GitHubon',
+        leiras: 'Betöltöd a GitHubon mentett árakat erre az eszközre, vagy az itteni árakat mented el legújabb változatként?',
+        gombok: [{ szoveg: 'Az itteniek mentése', ertek: 'itteni', tipus: 'masod' }, { szoveg: 'Betöltés a GitHubról', ertek: 'tavoli', tipus: 'fo' }]
+      });
+      if (valasz === 'tavoli') await arValtozatBetolt(ghAg(), 'legfrissebb');
+      else if (valasz === 'itteni') githubArakUtemez(`Árak erről az eszközről (${new Date().toLocaleDateString('hu-HU')})`, true);
+    } else githubArakUtemez('Első mentés', true);
+    uzenet('A GitHub-mentés be van állítva.');
+    tartosTarolasKeres(true);
+    ghSorszamFrissit(); ghSorFeldolgoz();
+  } catch (e) {
+    hibaMutat(e instanceof AppHiba ? e.message : 'A kapcsolódás nem sikerült. Próbáld újra később.');
+  } finally { if (gomb.isConnected) gombFoglalt(gomb, false); }
+}
+window.addEventListener('online', () => { ghSorFeldolgoz(); githubArakFeltolt().catch(() => {}); ghSorszamFrissit(); });
+window.addEventListener('offline', () => { ghAllapotRajzol(); keszGhFrissit(); });
+
+/* ======================================================================
    Nézetváltás (#arak), indulás
    ====================================================================== */
 let arakbaLepve = false;                          // az Árak a listáról, a gombbal nyílt meg (vissza = history.back)
@@ -2211,7 +2729,7 @@ function nezetBeallit() {
   g.setAttribute('aria-label', arak ? 'Vissza az árlistához' : 'Árak szerkesztése');
   if (arak) {
     if (dlg.open) dlgBezar(null);
-    arTablaRajzol(); beallRajzol(); offlineRajzol();
+    arTablaRajzol(); beallRajzol(); offlineRajzol(); ghRajzol();
     $('#importVisszaGomb').hidden = !elozoAllapot();
   }
   savMeret();
@@ -2232,14 +2750,16 @@ window.addEventListener('storage', e => {             // másik lapon történt 
     valasztas = betoltValasztas(); orvosValasztoRajzol(); listaArakFrissit(); osszegFrissit();
   } else if (e.key === KULCS.beall) {
     beall = objektum(olvas(KULCS.beall, null)); beallRajzol(); elokeszitett = null;
+  } else if (e.key === KULCS.github) {
+    gb = objektum(olvas(KULCS.github, null)); ghRajzol();
   }
 });
 let utolsoNap = datumok(new Date()).kulcs;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return;
+  if (document.hidden) { githubArakFeltolt({ keepalive: true }).catch(() => {}); return; }
   const ma = datumok(new Date()).kulcs;
-  if (ma !== utolsoNap) { utolsoNap = ma; elokeszitett = null; }
-  elokeszitesUtemez();
+  if (ma !== utolsoNap) { utolsoNap = ma; elokeszitett = null; datumRajzol(); }
+  elokeszitesUtemez(); ghSorszamFrissit(); ghSorFeldolgoz();
 });
 
 let tartosKert = false;
@@ -2312,7 +2832,9 @@ function indul() {
   beepitettBongeszoFigyelmeztetes();
   $('#verzio').textContent = `${C.cegnev} árlista-generáló · ${VERZIO}`;
   valasztasIgazit();
-  orvosValasztoRajzol(); listaRajzol(); osszegFrissit();
+  orvosValasztoRajzol(); datumRajzol(); listaRajzol(); osszegFrissit();
+  $('#mentesekGomb').innerHTML = ikon('archiv');
+  $('#mentesekGomb').hidden = !ghKesz();
   nezetBeallit();
   if (serultAdatJelzes) uzenet('A tárolt árak sérültek voltak, ezért az alapadatok töltődtek be. A sérült adat külön megmaradt; ha van mentésed, töltsd vissza az Árak lapon.', { hiba: true, ido: 15000 });
   const tetlen = window.requestIdleCallback || (fn => setTimeout(fn, 400));
@@ -2325,6 +2847,7 @@ function indul() {
     try { await pdfKeszenlet(); } catch (e) { /* gombnyomáskor jelezzük */ }
     if (location.hash === '#arak') offlineRajzol();
     elokeszitesUtemez();
+    ghSorszamFrissit(); ghSorFeldolgoz(); githubArakFeltolt().catch(() => {});
   });
   szolgaltatasMunkas();
   manifestBeallit();
