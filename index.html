@@ -156,6 +156,11 @@ p { margin: 0; }
 .hang-allapot { display: flex; align-items: center; gap: 10px; color: var(--tinta); font-weight: 600; }
 .hang-jel { width: 14px; height: 14px; border-radius: 50%; background: var(--hiba); box-shadow: 0 0 0 0 rgba(168, 50, 43, .5); animation: hangLuktet 1.4s ease-out infinite; flex: none; }
 @keyframes hangLuktet { 0% { box-shadow: 0 0 0 0 rgba(168, 50, 43, .45); } 100% { box-shadow: 0 0 0 14px rgba(168, 50, 43, 0); } }
+.hang-elo { margin: 0; padding: 0; list-style: none; border: 1px solid var(--vonal); border-radius: 12px; overflow: hidden; max-height: 32vh; overflow-y: auto; }
+.hang-elo li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; font-size: 16px; }
+.hang-elo li + li { border-top: 1px solid var(--zebra); }
+.hang-elo li > span:last-child { font-weight: 600; color: var(--tinta); white-space: nowrap; }
+.mezo-sugo { font-size: 14px; margin: 0; }
 .hang-atirat { min-height: 64px; padding: 12px 14px; border-radius: 12px; background: var(--zebra); font-size: 18px; line-height: 1.4; color: var(--szoveg); }
 .cimke-gomb { border: 1px solid var(--vonal-mezo); background: var(--papir); cursor: pointer; min-height: 40px; }
 
@@ -538,12 +543,13 @@ const ALAP_CONFIG = {
   gmailGomb: true, emailTargy: 'Árlista – {cegnev} – {datum}', emailSzoveg: 'Tisztelt {cimzett}!\n\nMellékelten küldöm az árlistát.\n\nÜdvözlettel:\n{cegnev}'
 };
 const C = Object.assign({}, ALAP_CONFIG, window.CONFIG || {});
-const VERZIO = '1.5.0';
+const VERZIO = '1.6.0';
 const NBSP = '\u{00A0}';
 const MAX_MENNY = 9999;
 const MAX_ORVOS = 500, MAX_TETEL = 5000;          // ennél több a mentésben / a linkben: nem töltjük be
 const MAX_AR = 99999999;                         // 99 999 999 Ft / db
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const ANDROID = /Android/i.test(navigator.userAgent);
 const BEEPITETT_BONGESZO = /FBAN|FBAV|FB_IAB|Instagram|Messenger|MicroMessenger|\bLine\//i.test(navigator.userAgent);
 
 /* Külső könyvtárak — rögzített verzió, SRI-ellenőrzéssel, offline gyorsítótárral (IndexedDB). */
@@ -1043,6 +1049,7 @@ function parbeszed({ cim, leiras = '', tartalom = null, gombok = [{ szoveg: 'Ren
   const elozoFokusz = document.activeElement;
   return new Promise(res => {
     dlgFeloldo = v => { res(v); if (elozoFokusz && elozoFokusz.isConnected && typeof elozoFokusz.focus === 'function') { try { elozoFokusz.focus({ preventScroll: true }); } catch (e) { /* nincs */ } } };
+    dlgNyitasIdo = Date.now();
     if (typeof dlg.showModal === 'function') { try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); } }
     else { dlg.setAttribute('open', ''); dlg.classList.add('nyitott-tartalek'); }
     const f = fokusz ? (typeof fokusz === 'string' ? dlg.querySelector(fokusz) : fokusz) : h;
@@ -1057,8 +1064,9 @@ function dlgBezar(ertek) {
 }
 dlg.addEventListener('cancel', e => { e.preventDefault(); dlgBezar(null); });
 dlg.addEventListener('close', () => { setTimeout(() => { if (!dlg.open) dlg.innerHTML = ''; }, 0); });   // az előnézet vásznát is elengedi
+let dlgNyitasIdo = 0;
 dlg.addEventListener('click', e => {             // kattintás a háttérre: bezárás
-  if (e.target !== dlg) return;
+  if (e.target !== dlg || Date.now() - dlgNyitasIdo < 400) return;
   const r = dlg.getBoundingClientRect();
   if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlgBezar(null);
 });
@@ -1357,32 +1365,121 @@ $('#keresoTorles').addEventListener('click', () => { kereso.value = ''; keresoRa
 /* ---------- bemondás: beszédfelismerés (magyarul) és a mondat értelmezése ---------- */
 const BeszedFelismero = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const hangTamogatott = !!BeszedFelismero;
-const SZAMOK = (() => {
-  const egyesek = { egy: 1, ket: 2, ketto: 2, harom: 3, negy: 4, ot: 5, hat: 6, het: 7, nyolc: 8, kilenc: 9 };
-  const m = Object.assign({ tiz: 10, husz: 20, harminc: 30, negyven: 40, otven: 50, hatvan: 60, hetven: 70, nyolcvan: 80, kilencven: 90, szaz: 100 }, egyesek);
-  for (const [elo, ertek] of [['tizen', 10], ['huszon', 20], ['harminc', 30], ['negyven', 40], ['otven', 50], ['hatvan', 60], ['hetven', 70], ['nyolcvan', 80], ['kilencven', 90]]) {
-    for (const [e, v] of Object.entries(egyesek)) m[elo + e] = ertek + v;
+/* számok a kiejtett (ékezetes) alakból: a „hát” nem hat, az „őt” nem öt */
+const SZAM_SZAVAK = (() => {
+  const egyesek = { egy: 1, két: 2, kettő: 2, három: 3, négy: 4, öt: 5, hat: 6, hét: 7, nyolc: 8, kilenc: 9 };
+  const targy = { egyet: 1, kettőt: 2, hármat: 3, négyet: 4, ötöt: 5, hatot: 6, hetet: 7, nyolcat: 8, kilencet: 9,   // tárgyeset: „hármat”
+    eggyel: 1, kettővel: 2, hárommal: 3, néggyel: 4, öttel: 5, hattal: 6, héttel: 7, nyolccal: 8, kilenccel: 9 };          // eszközhatározó: „kettővel kevesebb”
+  const m = new Map(Object.entries(Object.assign({ nulla: 0, nullát: 0, zéró: 0, tíz: 10, tízet: 10, tízzel: 10, húsz: 20, hússzal: 20, húsz: 20, húszat: 20, harminc: 30, harmincat: 30, negyven: 40, negyvenet: 40,
+    ötven: 50, ötvenet: 50, hatvan: 60, hatvanat: 60, hetven: 70, hetvenet: 70, nyolcvan: 80, nyolcvanat: 80, kilencven: 90, kilencvenet: 90, száz: 100, százat: 100 }, egyesek, targy)));
+  for (const [elo, ertek] of [['tizen', 10], ['huszon', 20], ['harminc', 30], ['negyven', 40], ['ötven', 50], ['hatvan', 60], ['hetven', 70], ['nyolcvan', 80], ['kilencven', 90]]) {
+    for (const [e, v] of Object.entries(egyesek)) m.set(elo + e, ertek + v);
+    for (const [e, v] of Object.entries(targy)) m.set(elo + e, ertek + v);
   }
+  // ékezet nélkül is (gépelés, ritkán a felismerő), kivéve, ahol ez más szó lenne: hat (hát), ot (őt), het
+  for (const [k, v] of [...m]) { const n = norm(k); if (!m.has(n) && !['ot', 'het', 'otot'].includes(n)) m.set(n, v); }
   return m;
 })();
-const szamErtek = t => (/^\d{1,4}$/.test(t) ? parseInt(t, 10) : (Object.prototype.hasOwnProperty.call(SZAMOK, t) ? SZAMOK[t] : null));
-const TOLTELEK = new Set(['darab', 'darabot', 'darabbal', 'db', 'legyen', 'kerek', 'kerem', 'kell', 'is', 'a', 'az', 'es', 'meg', 'plusz', 'valamint', 'utana', 'aztan', 'meg', 'doktor', 'doktorno', 'dr', 'doki', 'ur', 'reszere', 'ill', 'illetve', 'vagy', 'pedig', 'tehat', 'szoval', 'na', 'jo', 'oke', 'es', 'ehhez', 'hozza', 'hozzaadni', 'adj', 'add', 'tegyel', 'tedd', 'rakj']);
-function hangTokenPar(szoveg) {                   // [{ n: egyszerűsített, o: eredeti szó }]
-  const szavak = String(szoveg || '').toLocaleLowerCase('hu').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const r = [];                                    // „p m m a” → „pmma” (betűzött rövidítések)
-  let betuk = '', betukO = '';
-  for (const o of szavak) {
-    const n = norm(o).replace(/[^a-z0-9]+/g, '');
-    if (!n) continue;
-    if (/^[a-z]$/.test(n)) { betuk += n; betukO += (betukO ? ' ' : '') + o; continue; }
-    if (betuk) { r.push({ n: betuk, o: betukO }); betuk = betukO = ''; }
-    r.push({ n, o });
+const szamErtek = t => (/^\d{1,4}$/.test(t) ? parseInt(t, 10) : null);
+const TOLTELEK = new Set(['darab', 'darabot', 'darabbal', 'db', 'legyen', 'kerek', 'kernek', 'kerem', 'kerlek', 'kerunk', 'kernenk', 'kell', 'kellene', 'kene', 'is', 'a', 'az',
+  'es', 'meg', 'plusz', 'valamint', 'utana', 'aztan', 'akkor', 'dr', 'doki', 'ur', 'urnak', 'reszere', 'nak', 'nek', 'ill', 'vagy', 'pedig', 'tehat', 'szoval',
+  'na', 'jo', 'oke', 'ehhez', 'hozza', 'hozzaadni', 'adj', 'add', 'tegyel', 'tedd', 'rakj', 'irj', 'ird', 'irjal', 'fel', 'szeretnek', 'szeretnenk', 'bol', 'bot', 'ebbol',
+  'abbol', 'szamara', 'neki', 'hat', 'lassuk', 'csak', 'szepen', 'koszonom', 'koszi', 'lesz', 'lenne', 'mondjuk', 'nos', 'ugye', 'most', 'mar', 'ide', 'tessek', 'meg',
+  'jegyezd', 'jegyezz', 'kerj', 'rendelj', 'rendelek', 'kesziteni', 'keszits', 'kellenek', 'kellett', 'egyelore', 'osszesen', 'nekem', 'neki', 'ennek', 'annak',
+  'igen', 'egesz', 'osszes', 'le', 'ki', 'vissza', 'lista', 'listat', 'listabol', 'also', 'felso', 'tagu', 'tagos', 'hid', 'hidat', 'hidra', 'hidhoz', 'legyszi', 'legyszives', 'szives', 'szeretnem', 'lécci', 'lecci', 'ugyanugy', 'szinten', 'meg', 'itt', 'pedig']);
+const toltelekE = t => TOLTELEK.has(t) || /^dokto/.test(t);   // „doktornak”, „doktorúrnak”
+const RAG_SZAM_UTAN = new Set(['t', 'at', 'et', 'ot', 'ost', 'ast', 'est', 'tel', 'tal', 'al', 'el', 'szor', 'szer', 'db', 'x']);   // „3-at”, „2-t”, „5-öt”, „2db”
+const BETUNEVEK = { a: 'a', be: 'b', ce: 'c', de: 'd', e: 'e', ef: 'f', ge: 'g', ha: 'h', i: 'i', je: 'j', ka: 'k', el: 'l', em: 'm', en: 'n', o: 'o',
+  pe: 'p', ku: 'q', er: 'r', es: 's', te: 't', u: 'u', ve: 'v', iksz: 'x', ipszilon: 'y', ze: 'z' };
+const JAVITAS_SZAVAK = new Set(['nem', 'inkabb', 'bocsanat', 'bocs', 'bocsi', 'javitom', 'megis', 'hanem', 'azaz', 'vagyis', 'pardon', 'illetve', 'jaj', 'hopp', 'ja', 'jah',
+  'helyesbitek', 'helyesbitem', 'helyesbites', 'pontosabban', 'tevedtem', 'elnezest']);
+// jelek a mondatban (betűkből álló, hogy a szavakra bontás megtartsa)
+const JEL_TOROL = 'qqtorolqq', JEL_HELYETT = 'qqhelyettqq', JEL_MIND = 'qqmindqq', JEL_MARAD = 'qqmaradqq', JEL_MINUSZ = 'qqminuszqq',
+  JEL_MINDEGYIK = 'qqmindegyikqq', JEL_TARTOMANY = 'qqtartomanyqq', JEL_KIVEVE = 'qqkiveveqq';
+const JELEK = new Set([JEL_TOROL, JEL_HELYETT, JEL_MIND, JEL_MARAD, JEL_MINUSZ, JEL_MINDEGYIK, JEL_TARTOMANY, JEL_KIVEVE]);
+const H = '(?<![\\p{L}\\p{N}])', V = '(?![\\p{L}\\p{N}])';
+const JEL_MINTAK = [
+  [new RegExp(H + '(?:nem\\s+(?:kell\\p{L}*|kér\\p{L}*|lesz)|ne\\s+legyen|nincs(?:en)?|mégse(?:m)?(?:\\s+kell\\p{L}*)?|egy(?:et)?\\s+se(?:m)?(?:\\s+kell\\p{L}*)?|' +
+    '(?:ki)?tör(?:öl|l)\\p{L}*|vedd\\s+(?:ki|le|el)|vegyük\\s+(?:ki|le)|vegyél\\s+(?:ki|le)|(?:szedd|szedjük|szedjed|húzd|dobd)\\s+(?:ki|le)|(?:ki|le)\\s+kell\\s+venni|felejtsd\\s+el|vedd\\s+vissza|(?:se|sem)\\s+kell\\p{L}*|hagy(?:d|juk|jad|jál|ja)\\s+(?:ki|el)|kivenni|kiveszem|nulláz\\p{L}*)' + V, 'gu'), JEL_TOROL],
+  [new RegExp(H + '(?:mínusz|minusz|kevesebb\\p{L}*)' + V, 'gu'), JEL_MINUSZ],
+  [new RegExp(H + 'helyett(?:e)?' + V, 'gu'), JEL_HELYETT],
+  [new RegExp(H + '(?:mindegyik|mindkettő|mind|mindhárom)(?:ből|nek|re|ből\\s+is)\\s+(\\p{L}+|\\d+)' + V, 'gu'), (m, x) => ` ${JEL_MINDEGYIK} ${x} `],   // „mindkettőből kettő”
+  [new RegExp(H + '(?:az\\s+)?(?:egészet|mindet|mindent|összeset|mindegyiket|a\\s+többit|a\\s+többi)' + V + '|' + H + 'az\\s+(?:egész|összes)(?:\\s+list\\p{L}*)?(?!\\s*\\p{L})', 'gu'), JEL_MIND],
+  [new RegExp(H + 'kivéve' + V, 'gu'), JEL_KIVEVE],
+  [new RegExp(H + '(?:marad\\p{L}*|hagyd\\s+meg|hagyjuk\\s+meg|hagyd)' + V, 'gu'), JEL_MARAD]
+];
+const MEG_MINTA = new RegExp(H + 'még' + V, 'u');
+
+let hangSzotarCache = null;
+function hangSzotar() {                           // a tételnevek szavai (összerakáshoz) és rövidítései (betűzéshez)
+  const kulcs = adat.tetelek.map(t => t.nev).join('|');
+  if (hangSzotarCache && hangSzotarCache.kulcs === kulcs) return hangSzotarCache;
+  const roviditesek = new Set(), szavak = new Set(), kulcsok = new Set();
+  for (const t of adat.tetelek) for (const sz of String(t.nev).split(/[^\p{L}\p{N}]+/u)) {
+    if (!sz) continue;
+    const n = norm(sz).replace(/[^a-z0-9]+/g, '');
+    if (sz.length >= 2 && sz.length <= 6 && sz === sz.toLocaleUpperCase('hu') && /\p{L}/u.test(sz)) roviditesek.add(n);
+    if (n.length >= 4 && !/^\d+$/.test(n)) { szavak.add(n); kulcsok.add(hangKulcs(n)); }
   }
-  if (betuk) r.push({ n: betuk, o: betukO });
+  hangSzotarCache = { kulcs, roviditesek, szavak, kulcsok };
+  return hangSzotarCache;
+}
+function hangSzoE(osszerakott, sz, raggal = true) {   // a szétesett szó („mű íny”, „in lay”, „fog sor javítás”) egy tételnév szava-e
+  if (sz.szavak.has(osszerakott) || sz.kulcsok.has(hangKulcs(osszerakott))) return true;
+  if (!raggal) return false;
+  for (const v of sz.szavak) if (v.length >= 6 && osszerakott.startsWith(v) && osszerakott.length - v.length <= 3) return true;   // raggal: „íny maszkot”
+  return false;
+}
+function hangTokenPar(szoveg) {                   // [{ n: egyszerűsített, o: eredeti szó }] — a számszavak számjeggyé válnak
+  let s = String(szoveg || '').toLocaleLowerCase('hu').normalize('NFC');
+  s = s.replace(/(?<![\p{L}\p{N}])((?:\p{L}\.\s?){2,})/gu, m => m.replace(/[.\s]/g, '') + ' ');   // „p.m.m.a.” → „pmma”
+  s = s.replace(/(\d)(\p{L})/gu, '$1 $2');        // „2db” → „2 db”
+  const nyers = [];
+  for (const o of s.split(/[^\p{L}\p{N}]+/u)) {
+    if (!o) continue;
+    if (SZAM_SZAVAK.has(o)) { nyers.push({ n: String(SZAM_SZAVAK.get(o)), o }); continue; }
+    const n = norm(o).replace(/[^a-z0-9]+/g, '');
+    if (n) nyers.push({ n, o });
+  }
+  const ragNelkul = nyers.filter((x, i) => !(i > 0 && /^\d+$/.test(nyers[i - 1].n) && RAG_SZAM_UTAN.has(x.n)));   // „3-at” → „3”
+  const sz = hangSzotar();
+  const r = [];
+  for (let i = 0; i < ragNelkul.length;) {
+    // betűzés: „p m m a” vagy „pé em em á” → „pmma” (betűnevekből csak a tételnevek rövidítései állnak össze)
+    let j = i, betuk = '', utolsoJo = -1, joBetuk = '';
+    while (j < ragNelkul.length) {
+      const n = ragNelkul[j].n;
+      const b = /^[a-z]$/.test(n) ? n : (Object.prototype.hasOwnProperty.call(BETUNEVEK, n) ? BETUNEVEK[n] : null);
+      if (b == null) break;
+      betuk += b; j++;
+      if (betuk.length >= 2 && (sz.roviditesek.has(betuk) || ragNelkul.slice(i, j).every(x => /^[a-z]$/.test(x.n)))) { utolsoJo = j; joBetuk = betuk; }
+    }
+    if (utolsoJo > i) { r.push({ n: joBetuk, o: ragNelkul.slice(i, utolsoJo).map(x => x.o).join(' ') }); i = utolsoJo; continue; }
+    // szétesett szó: két-három egymás utáni szó együtt egy tételnév szava
+    let osszerakva = false;
+    for (const k of [3, 2]) {
+      if (i + k > ragNelkul.length) continue;
+      const resz = ragNelkul.slice(i, i + k);
+      if (resz.some(x => /^\d+$/.test(x.n) || JELEK.has(x.n) || x.n.length > 10)) continue;
+      const egyben = resz.map(x => x.n).join('');
+      if (egyben.length >= 5 && hangSzoE(egyben, sz, !sz.szavak.has(resz[0].n))) { r.push({ n: egyben, o: resz.map(x => x.o).join(' ') }); i += k; osszerakva = true; break; }
+    }
+    if (osszerakva) continue;
+    const x = ragNelkul[i];
+    if (x.n.length >= 8 && !/^\d+$/.test(x.n) && !sz.szavak.has(x.n) && !JELEK.has(x.n)) {
+      let bontva = false;
+      for (let k = 4; k <= x.n.length - 4; k++) {
+        const e1 = x.n.slice(0, k), e2 = x.n.slice(k);
+        if (sz.szavak.has(e1) && hangSzoE(e2, sz)) { r.push({ n: e1, o: x.o }, { n: e2, o: '' }); bontva = true; break; }
+      }
+      if (bontva) { i++; continue; }
+    }
+    r.push(x); i++;
+  }
   return r;
 }
 const hangTokenek = szoveg => hangTokenPar(szoveg).map(x => x.n);
-const hangTartalom = tok => tok.filter(t => !TOLTELEK.has(t)).map(t => { const v = szamErtek(t); return v != null ? String(v) : t; });
+const hangTartalom = tok => tok.filter(t => !toltelekE(t) && !JELEK.has(t));
 function levenshtein(a, b, max) {
   if (Math.abs(a.length - b.length) > max) return max + 1;
   let elozo = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -1397,146 +1494,534 @@ function levenshtein(a, b, max) {
   }
   return elozo[b.length];
 }
+const hangKulcsCache = new Map();
+function hangKulcs(t) {                           // magyar hangzás szerinti kulcs: sz/s, c/cz/ts, ly/j, kettőzött betűk, angol ay/ey → e
+  let k = hangKulcsCache.get(t);
+  if (k !== undefined) return k;
+  k = t.replace(/tsz|ts|cz|tz/g, 'c').replace(/sz/g, 's').replace(/zs/g, 'z').replace(/cs|ch/g, 'c').replace(/ly/g, 'j').replace(/gy/g, 'd').replace(/ny/g, 'n').replace(/ty/g, 't')
+    .replace(/ay|ey|ei|ai/g, 'e').replace(/ph/g, 'f').replace(/th/g, 't').replace(/w/g, 'v').replace(/x/g, 'ks').replace(/qu|q/g, 'k').replace(/ck/g, 'k').replace(/y/g, 'i')
+    .replace(/(.)\1+/g, '$1');
+  if (hangKulcsCache.size > 3000) hangKulcsCache.clear();
+  hangKulcsCache.set(t, k);
+  return k;
+}
+function kozosEleje(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; }
+const tokenHasonloMemo = new Map();
 function tokenHasonlo(a, b) {
   if (a === b) return 1;
+  const mk = a + '|' + b;
+  let m = tokenHasonloMemo.get(mk);
+  if (m === undefined) { m = tokenHasonloSzamol(a, b); if (tokenHasonloMemo.size > 20000) tokenHasonloMemo.clear(); tokenHasonloMemo.set(mk, m); }
+  return m;
+}
+function tokenHasonloSzamol(a, b) {
+  if (/^\d+$/.test(a) || /^\d+$/.test(b)) return 0;
+  const ka = hangKulcs(a), kb = hangKulcs(b);
+  if (ka === kb && ka.length >= 3) return 0.92;                                               // hangzásra azonos: „szirkon” ↔ „cirkon”, „inlé” ↔ „inlay”
   if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return 0.9;   // ragok: koronát, fogsort
-  if (a.length >= 5 && b.length >= 5 && (a.endsWith(b) || b.endsWith(a))) return 0.8;       // összetett szó: javítás ↔ fogsorjavítás
+  if (ka.length >= 4 && kb.length >= 4 && (ka.startsWith(kb) || kb.startsWith(ka))) return 0.86;
+  const elej = kozosEleje(a, b), rovidebb = Math.min(a.length, b.length);
+  if (elej >= 5 && rovidebb <= elej + 2 && Math.max(a.length, b.length) <= elej + 4) return 0.82;   // közös tő, csak a rag más: „fémhálós” ↔ „fémhálóval” (de „harapási” ≠ „harapásemelő”)
+  if (b.length === 3 && a.length > 3 && a.startsWith(b) && a.length - b.length <= 2) return 0.85;
+  const mh = x => x.replace(/[aeiou]/g, '');
+  if (b.length <= 5 && (b.match(/[aeiou]/g) || []).length <= 1 && mh(b).length >= 3 && mh(a) === mh(b)) return 0.85;   // „pémma” ↔ „pmma”   // a név rövid szava raggal: „sínt” ↔ „sín” (de „fog” ≠ „fogas”)
+  if (a.length >= 5 && b.length >= 5 && b.endsWith(a)) return 0.8;                        // összetett szó: „javítás” ↔ „fogsorjavítás”
+  if (a.length >= 5 && b.length >= 5 && a.endsWith(b)) return 0.7;                        // „fémkorona” → „korona”: rokon, de nem ugyanaz
+  if (a.length >= 6 && b.length >= 6) for (let k = 1; k <= 3; k++) { const t = a.slice(0, -k); if (t.length >= 5 && b !== t && b.endsWith(t)) return 0.8; }   // „koronát” ↔ „fémkorona”
   if (a.length >= 5 && b.length >= 5) {
-    const d = levenshtein(a, b, 2);
+    const d = Math.min(levenshtein(a, b, 2), levenshtein(ka, kb, 2));
     if (d <= 1) return 0.85;
-    if (d === 2 && Math.min(a.length, b.length) >= 8) return 0.75;
+    if (d === 2 && rovidebb >= 8) return 0.75;
   }
   return 0;
 }
-function egyezes(s, i) {                          // Dice-hasonlóság, elírást és ragot tűrő szóegyezéssel
-  if (!s.length || !i.length) return 0;
-  const hasznalt = new Array(i.length).fill(false); let osszeg = 0;
+function egyezesR(s, i) {                         // a kimondott szavak (s) és egy név szavai (i): Dice-pont, a talált szavak összege, és hogy minden kimondott szó benne van-e
+  if (!s.length || !i.length) return { pont: 0, osszeg: 0, talalt: 0, tartalmaz: false, teljes: false, eros: false, pontos: false };
+  if (!s.some(x => /^\d+$/.test(x))) { const szamNelkul = i.filter(x => !/^\d+$/.test(x)); if (szamNelkul.length) i = szamNelkul; }
+  const hasznalt = new Array(i.length).fill(false); let osszeg = 0, talalt = 0, mindJo = true;
   for (const a of s) {
     let legjobb = 0, lj = -1;
     i.forEach((b, j) => { if (hasznalt[j]) return; const h = tokenHasonlo(a, b); if (h > legjobb) { legjobb = h; lj = j; } });
-    if (lj >= 0) { hasznalt[lj] = true; osszeg += legjobb; }
+    if (lj >= 0) { hasznalt[lj] = true; osszeg += legjobb; if (legjobb >= 0.8) talalt++; }
+    // „jó” pár: (közel) azonos, vagy a kimondott szó a hosszabb (rag van rajta) — nem a név egy levágott eleje („fogsor” ≠ „fogsorjavítás”)
+    if (!(lj >= 0 && (legjobb >= 0.92 || (legjobb >= 0.85 && i[lj].length <= a.length + 1)))) mindJo = false;
   }
   let pont = 2 * osszeg / (s.length + i.length);
+  let tartalmaz = talalt === s.length;
+  let teljes = tartalmaz && mindJo && s.length === i.length;   // a név minden szava is megvan (elírással is): „szirkon korona” ↔ Cirkon korona
   const sj = s.join(''), ij = i.join('');            // egybeírt / különírt alak: „fém kerámia” ↔ „fémkerámia”
-  if (sj.length >= 5) {
-    const d = levenshtein(sj, ij, 2);
-    if (d <= 2) pont = Math.max(pont, 1 - d * 0.08);
+  if (sj.length >= 5 && s.length !== i.length && !s.some(x => /^\d+$/.test(x))) {
+    const d = Math.min(levenshtein(sj, ij, 2), levenshtein(hangKulcs(sj), hangKulcs(ij), 2));
+    if (d <= 2) { pont = Math.max(pont, 1 - d * 0.08); osszeg = Math.max(osszeg, Math.min(s.length, i.length) * (1 - d * 0.08)); talalt = s.length; tartalmaz = true; teljes = true; }
   }
-  return pont;
+  const eros = tartalmaz && (mindJo || teljes);
+  const pontos = s.every(a => i.includes(a));        // minden kimondott szó szó szerint megvan a névben
+  return { pont, osszeg, talalt, tartalmaz, teljes, eros, pontos };
 }
+const egyezes = (s, i) => egyezesR(s, i).pont;
 let hangJeloltCache = null;
 function hangJeloltek(tart, csak = null) {
-  const kulcs = adat.tetelek.map(t => t.id + '=' + t.nev).join('|') + '#' + adat.orvosok.map(o => o.id + '=' + o.nev).join('|');
+  const aliasok = hangAliasok();
+  const kulcs = adat.tetelek.map(t => t.id + '=' + t.nev).join('|') + '#' + adat.orvosok.map(o => o.id + '=' + o.nev).join('|') + '#' + hangAliasValtozat;
   if (!hangJeloltCache || hangJeloltCache.kulcs !== kulcs) {
-    hangJeloltCache = { kulcs, lista: [
+    const lista = [
       ...adat.tetelek.map(t => ({ fajta: 'tetel', id: t.id, nev: t.nev, tok: hangTartalom(hangTokenek(t.nev)) })),
       ...adat.orvosok.map(o => ({ fajta: 'orvos', id: o.id, nev: o.nev, tok: hangTartalom(hangTokenek(o.nev)) }))
-    ] };
+    ];
+    for (const t of adat.tetelek) for (const a of aliasok[t.nev] || []) {   // a tanult / megadott más nevek
+      const tok = hangTartalom(hangTokenek(a)).filter(x => szamErtek(x) == null);
+      if (tok.length) lista.push({ fajta: 'tetel', id: t.id, nev: t.nev, tok, alias: true });
+    }
+    hangJeloltCache = { kulcs, lista, memo: new Map() };
   }
-  return hangJeloltCache.lista.filter(j => !csak || j.fajta === csak)
-    .map(j => ({ fajta: j.fajta, id: j.id, nev: j.nev, pont: egyezes(tart, j.tok) }))
-    .sort((a, b) => b.pont - a.pont);
+  const memoKulcs = (csak || '') + '|' + tart.join(' ');
+  const mentett = hangJeloltCache.memo.get(memoKulcs);
+  if (mentett) return mentett;
+  const legjobb = new Map();                      // tételenként a legjobb (név vagy más név)
+  for (const j of hangJeloltCache.lista) {
+    if (csak && j.fajta !== csak) continue;
+    const e = egyezesR(tart, j.tok);
+    if (j.alias && !e.teljes) continue;          // a más név csak egészében számít („korona” ne vigye el a „teleszkóp koronát”)
+    const k = j.fajta + j.id;
+    const regi = legjobb.get(k);
+    if (!regi || e.pont > regi.pont || (e.pont === regi.pont && regi.alias && !j.alias)) legjobb.set(k, { fajta: j.fajta, id: j.id, nev: j.nev, pont: e.pont, osszeg: e.osszeg, talalt: e.talalt, tartalmaz: e.tartalmaz, teljes: e.teljes, eros: e.eros, pontos: e.pontos, alias: !!j.alias });
+  }
+  const eredm = [...legjobb.values()].sort((a, b) => b.pont - a.pont).slice(0, 8);
+  if (hangJeloltCache.memo.size > 3000) hangJeloltCache.memo.clear();
+  hangJeloltCache.memo.set(memoKulcs, eredm);
+  return eredm;
+}
+function hangLenyegesSzo(t) {                     // hasonlít-e a szó valamelyik tétel- vagy orvosnév (vagy más név) szavára
+  hangJeloltek([]);                               // a jelöltlista frissítése
+  const c = hangJeloltCache;
+  if (!c.szavak) { c.szavak = [...new Set(c.lista.flatMap(j => j.tok))]; c.lenyeges = new Map(); }
+  let v = c.lenyeges.get(t);
+  if (v === undefined) { v = c.szavak.some(b => tokenHasonlo(t, b) >= 0.7); c.lenyeges.set(t, v); }
+  return v;
 }
 function szegmensMennyiseg(tok) {                 // „két cirkon korona” / „cirkon korona kettő”
-  const t = tok.filter(x => !TOLTELEK.has(x));
+  const t = tok.filter(x => !toltelekE(x));
   let menny = null, elol = false, i = 0, j = t.length;
   if (i < j && szamErtek(t[i]) != null) { menny = szamErtek(t[i]); elol = true; i++; }
   else if (j > i + 1 && szamErtek(t[j - 1]) != null) { menny = szamErtek(t[j - 1]); j--; }
-  return { menny, elol, tart: hangTartalom(t.slice(i, j)) };
+  const tart = hangTartalom(t.slice(i, j));
+  return { menny, elol, tart: tart.some(x => szamErtek(x) == null) ? tart : [] };
+}
+function tetelDontes(tetelek, szoSzam = 2) {                   // biztos-e a találat; ha nem, mik a javaslatok
+  const [t1, t2] = tetelek;
+  if (!t1) return { biztos: null, javaslatok: [] };
+  if (t1.pont >= 0.97) return { biztos: t1 };
+  const bennvan = tetelek.filter(x => x.tartalmaz);
+  const pontosak = tetelek.filter(x => x.pontos);   // minden kimondott szó szó szerint megvan
+  if (pontosak.length >= 2) return { biztos: null, javaslatok: pontosak.slice(0, 4) };          // „két fémlemezes”: két névben is szerepel
+  if (pontosak.length === 1) {
+    const p1 = pontosak[0], masik = bennvan.filter(x => x !== p1);
+    if ((szoSzam >= 2 || !masik.length) && !masik.some(x => x.pont > p1.pont)) return { biztos: p1 };   // „két patent”, „anatómikus fémkorona”
+    if (masik.length) return { biztos: null, javaslatok: [p1].concat(masik).slice(0, 4) };             // „két csap”: Cirkon csap vagy Csapos műcsonk
+  }
+  if (t1.teljes && t1.pont >= 0.8) return { biztos: t1 };                                     // minden szó megvan (elírással): „szirkon korona”
+  const eros = bennvan.filter(x => x.eros);
+  if (eros.length === 1 && eros[0] === t1 && t1.pont >= 0.35 && (bennvan.length === 1 || szoSzam >= 2)) return { biztos: t1 };   // egy szónál („csap”) csak, ha más tételben sincs meg     // a kimondott szavak pontosan csak a legjobb tételben vannak meg
+  if (bennvan.length === 1 && bennvan[0].pont >= Math.max(0.4, t1.pont - 0.1)) return { biztos: bennvan[0] };   // a kimondott szavak csak egy tételben vannak meg mind
+  if (bennvan.length >= 2) return { biztos: null, javaslatok: bennvan.slice(0, 4) };      // több tételben is: rákérdezünk („két korona”)
+  if (t1.pont >= 0.6 && (!t2 || t1.pont - t2.pont >= 0.08)) return { biztos: t1 };
+  return { biztos: null, javaslatok: tetelek.filter(x => x.pont >= 0.3).slice(0, 4) };
+}
+function ismetlesNelkul(szoveg) {                 // halmozott ismétlés („A A B A B”, „A A A B”): egy blokk legalább háromszor → egyszer
+  const osszes = String(szoveg || '').split(/\s+/).filter(Boolean);
+  const w = osszes.slice(0, 300), maradek = osszes.slice(300);
+  const k = w.map(x => norm(x).replace(/[^a-z0-9]+/g, ''));
+  const azonos = (a, b, h) => { for (let t = 0; t < h; t++) if (k[a + t] !== k[b + t]) return false; return true; };
+  const elofordul = (i, h) => { let db = 0; for (let x = 0; x + h <= k.length;) { if (azonos(i, x, h)) { db++; x += h; } else x++; } return db; };
+  let valt = true;
+  while (valt) {
+    valt = false;
+    keres: for (let h = Math.floor(w.length / 2); h >= 2; h--) {
+      for (let i = 0; i + 2 * h <= w.length; i++) {
+        if (azonos(i, i + h, h) && elofordul(i, h) >= 3) { w.splice(i + h, h); k.splice(i + h, h); valt = true; break keres; }
+      }
+    }
+  }
+  return w.concat(maradek).join(' ');
+}
+const KERDES_MINTA = new RegExp(H + '(?:mennyibe|mennyi\\s+(?:az\\s+)?ára|mi\\s+az\\s+ára|mibe\\s+kerül|kerül\\p{L}*)' + V, 'u');   // árra kérdez, nem rendel
+const BIZONYTALAN_SZAM = new Set(['par', 'parat', 'nehany', 'nehanyat', 'egynehany', 'egypar', 'egyparat']);   // „pár műfog”: nincs pontos szám → kérdés
+function illesztettSzavak(szoveg, nev) {         // a tételnév mely szavaira illik a kimondott rész
+  const sz = hangTartalom(hangTokenek(szoveg)).filter(x => szamErtek(x) == null), nv = hangTartalom(hangTokenek(nev)).filter(x => szamErtek(x) == null);
+  const r = new Set();
+  for (const a of sz) { let lj = -1, h = 0; nv.forEach((b, k) => { const x = tokenHasonlo(a, b); if (x > h) { h = x; lj = k; } }); if (lj >= 0 && h >= 0.8) r.add(lj); }
+  return r;
+}
+function masikValtozat(l1, l2) {                 // „cirkon inlay” és „cirkon onlay” → két külön változat (összeadjuk); „szirkon korona” ~ „cirkon korona” → ugyanaz
+  const a = illesztettSzavak(l1.szoveg, l1.nev), b = illesztettSzavak(l2.szoveg, l2.nev);
+  if (!a.size || !b.size) return false;
+  const aBenneB = [...a].every(x => b.has(x)), bBenneA = [...b].every(x => a.has(x));
+  return !aBenneB && !bBenneA;
 }
 function hangErtelmez(szoveg) {
-  const kis = String(szoveg || '').toLocaleLowerCase('hu');
-  // kemény elválasztók: vessző, pont, „és”, „meg”, „plusz”, „valamint”, „aztán”, „utána”
-  const darabok = kis.split(/[,;.!?\n]+|\s+(?:és|meg|plusz|valamint|aztán|utána)\s+/u).map(x => x.trim()).filter(Boolean);
+  let kis = ismetlesNelkul(String(szoveg || '').toLocaleLowerCase('hu').normalize('NFC'));
+  kis = kis.replace(new RegExp(H + '(?:alsó\\s+(?:és\\s+|meg\\s+)?felső|felső\\s+(?:és\\s+|meg\\s+)?alsó)' + V, 'gu'), ' két ');   // alsó-felső = 2
+  kis = kis.replace(/(\p{L}+|\d+)tagú/gu, '$1 ');                         // „háromtagú híd” → „három … híd”
+  kis = kis.replace(/(?<![\p{L}\p{N}])(\p{L}+|\d+)\s*[-–]\s*(\p{L}+|\d+)(?![\p{L}\p{N}])/gu, (m, a, b) => {   // „kettő-kettő”, „két-három”
+    const va = SZAM_SZAVAK.has(a) ? SZAM_SZAVAK.get(a) : (/^\d+$/.test(a) ? +a : null), vb = SZAM_SZAVAK.has(b) ? SZAM_SZAVAK.get(b) : (/^\d+$/.test(b) ? +b : null);
+    if (va == null || vb == null) return m;
+    return va === vb ? ` ${JEL_MINDEGYIK} ${va} ` : ` ${JEL_TARTOMANY} ${va} ${vb} `;
+  });
+  for (const [minta, jel] of JEL_MINTAK) kis = kis.replace(minta, typeof jel === 'function' ? jel : ' ' + jel + ' ');
+  // kemény elválasztók: vessző, pont (de nem rövidítésben), „és”, „meg”, „plusz”, „de”, „illetve” …
+  const darabok = kis.replace(/(?<![\p{L}\p{N}])((?:\p{L}\.\s?){2,})/gu, m => m.replace(/[.\s]/g, '') + ' ')
+    .split(/[,;!?\n]+|\.(?!\d)|\s+(?:és|es|meg|plusz|valamint|aztán|utána|továbbá|de|viszont|hanem|majd|illetve)\s+/u).map(x => x.trim()).filter(Boolean);
   const lepesek = [], bizonytalan = [], ismeretlen = []; let orvos = null;
-  for (const darab of darabok) {
-    const meg = /^még\s/u.test(darab);
-    const par = hangTokenPar(meg ? darab.replace(/^még\s+/u, '') : darab);
+  let elozoId = null;                             // a darabok között is: „inlay és onlay” ugyanaz a tétel
+  let torlesFolytat = false;                      // „töröld a cirkon koronát és az ínymaszkot”
+  let javitasFuggo = false;                       // „két PMMA koronát, jaj nem, cirkon koronát”
+  let elozoDarabTargy = [];                       // az előző darab tárgyesetes, szám nélküli lépései („az interlockot meg a vállat szedd le”)
+  let elozoDarabLepesek = [];                     // az előző darab minden szám nélküli lépése („a műfog és az ínymaszk nem kell”)
+  let elosztott = null, elosztottDarab = -1, darabSzam = -1;   // „két-két cirkon korona és műfog”: a felsorolás minden tételére
+  const sz = hangSzotar();
+  const javit = (l, x) => { l.menny = x; if (!l.meg) l.mod = 'beallit'; l.javitas = true; };   // a „még”-es hozzáadás javítva is hozzáadás marad
+  for (let darab of darabok) {
+    darabSzam++;
+    if (KERDES_MINTA.test(darab)) { javitasFuggo = false; elozoDarabTargy = []; continue; }
+    const meg = MEG_MINTA.test(darab) || /^plusz\s/u.test(darab);
+    darab = darab.replace(new RegExp(MEG_MINTA.source, 'gu'), ' ').replace(/^plusz\s+/u, '');
+    const par = hangTokenPar(darab);
     const tok = par.map(x => x.n), eredeti = par.map(x => x.o);
     const n = tok.length;
+    const vanJel = tok.some(t => JELEK.has(t)), vanJavito = tok.some(t => JAVITAS_SZAVAK.has(t));
+    const tartalmi = tok.filter(t => !toltelekE(t) && !JAVITAS_SZAVAK.has(t) && !JELEK.has(t) && !BIZONYTALAN_SZAM.has(t));
+    if (!tartalmi.length && vanJavito && !vanJel) { javitasFuggo = true; continue; }   // „…, jaj nem, …”
+    if (tok.includes(JEL_MINDEGYIK)) {
+      const x = szamErtek(tok[tok.indexOf(JEL_MINDEGYIK) + 1] || '');
+      const tobbi = tartalmi.filter(t => szamErtek(t) == null);
+      if (x != null && !tobbi.length) {           // „egyéni kanál meg harapási sablon, kettő-kettő”
+        for (let k = lepesek.length - 1; k >= 0 && !lepesek[k].kimondott && lepesek[k].mod === 'hozzaad' && !lepesek[k].torol; k--) { lepesek[k].menny = x; lepesek[k].mod = 'beallit'; lepesek[k].kimondott = true; }
+        continue;
+      }
+    }
+    const tartomany = tok.includes(JEL_TARTOMANY);   // „két-három fémkerámia”: nincs pontos szám → kérdés
+    // csak szám (és „nem”, „inkább” …): az előző tétel darabszámának javítása („két cirkon korona, nem, három”)
+    if (tartalmi.length === 1 && szamErtek(tartalmi[0]) != null && lepesek.length && !vanJel) {
+      const l = lepesek[lepesek.length - 1], x = szamErtek(tartalmi[0]);
+      if (l.mod !== 'nullaz') {
+        if (javitasFuggo || vanJavito || !meg) javit(l, x); else { l.menny += x; l.javitas = true; }   // „…, még három”: hozzáad
+        l.szoveg += ' → ' + eredeti.filter(Boolean).join(' ');
+      }
+      javitasFuggo = false;
+      continue;
+    }
+    if (!tartalmi.length && !vanJel) continue;
+    const bizonytalanSzam = tok.some(t => BIZONYTALAN_SZAM.has(t));
+    // ha a darab számmal végződik („kompozit inlay kettő, PMMA korona három”), a tétel utáni számot részesítjük előnyben
+    let vegenSzam = false;
+    for (let k = n - 1; k >= 0; k--) {
+      if (toltelekE(tok[k]) || JELEK.has(tok[k]) || JAVITAS_SZAVAK.has(tok[k])) continue;
+      vegenSzam = szamErtek(tok[k]) != null && !(k > 0 && (tok[k - 1] === 'csak' || JAVITAS_SZAVAK.has(tok[k - 1])));
+      break;
+    }
+    // legjobb felbontás (dinamikus programozás): a talált szavak számítanak; a tételen belüli idegen szó többet levon, mint a kihagyott
     const legjobb = new Array(n + 1).fill(null); legjobb[n] = { pont: 0, reszek: [] };
+    // lényegtelen szó (sem töltelék, sem szám, és egyik név szavához sem hasonlít): ilyet tartalmazó szakasz nem lehet tétel
+    const lenyeges = tok.map(t => toltelekE(t) || szamErtek(t) != null || JELEK.has(t) || t.length <= 3 || hangLenyegesSzo(t));   // rövid töredék („pm ma”) lehet egy név része
+    const tiltott = new Set();                      // a „két-három” számai nem lehetnek egy tétel számai
+    tok.forEach((t, k) => { if (t === JEL_TARTOMANY) { if (szamErtek(tok[k + 1] || '') != null) tiltott.add(k + 1); if (szamErtek(tok[k + 2] || '') != null) tiltott.add(k + 2); } });
     for (let i = n - 1; i >= 0; i--) {
-      let opt = { pont: legjobb[i + 1].pont - 0.25, reszek: [{ kihagyott: i }].concat(legjobb[i + 1].reszek) };
+      if (JELEK.has(tok[i])) { legjobb[i] = { pont: legjobb[i + 1].pont, reszek: [{ jel: tok[i], i }].concat(legjobb[i + 1].reszek) }; continue; }
+      if (JAVITAS_SZAVAK.has(tok[i]) || BIZONYTALAN_SZAM.has(tok[i])) { legjobb[i] = { pont: legjobb[i + 1].pont, reszek: [{ kihagyott: i }].concat(legjobb[i + 1].reszek) }; continue; }
+      let opt = { pont: legjobb[i + 1].pont - (toltelekE(tok[i]) ? 0.05 : 0.25), reszek: [{ kihagyott: i }].concat(legjobb[i + 1].reszek) };
+      if (tiltott.has(i)) { legjobb[i] = { pont: legjobb[i + 1].pont, reszek: [{ kihagyott: i }].concat(legjobb[i + 1].reszek) }; continue; }
+      let idegen = 0;                               // egy szakaszban legfeljebb egy lényegtelen szó („két sima fémkerámia”)
       for (let j = i + 1; j <= Math.min(n, i + 10); j++) {
-        const sz = szegmensMennyiseg(tok.slice(i, j));
-        if (!sz.tart.length) continue;
-        const jeloltek = hangJeloltek(sz.tart);
+        if (!lenyeges[j - 1]) idegen++;
+        if (JELEK.has(tok[j - 1]) || JAVITAS_SZAVAK.has(tok[j - 1]) || BIZONYTALAN_SZAM.has(tok[j - 1]) || tiltott.has(j - 1) || idegen > 1) break;
+        const szm = szegmensMennyiseg(tok.slice(i, j));
+        if (!szm.tart.length) continue;
+        const jeloltek = hangJeloltek(szm.tart);
         const elso = jeloltek[0];
-        if (!elso || elso.pont < 0.45) continue;
-        const pont = elso.pont * sz.tart.length + (sz.menny != null ? (sz.elol ? 0.5 : 0.4) : 0) + legjobb[j].pont;
-        if (pont > opt.pont) opt = { pont, reszek: [{ szoveg: eredeti.slice(i, j).join(' '), menny: sz.menny, jeloltek }].concat(legjobb[j].reszek) };
+        if (!elso || (elso.pont < 0.45 && !jeloltek.some(x => x.pontos && x.pont >= 0.3))) continue;
+        let bizonyitek = -Infinity;                 // a legjobban illeszkedő tétel szerint (nem csak az első jelölt)
+        for (const x of jeloltek.slice(0, 6)) if (x.pont >= 0.35) bizonyitek = Math.max(bizonyitek, x.osszeg - 0.45 * (szm.tart.length - x.talalt));
+        const szamBonusz = szm.menny == null ? 0 : (szm.elol ? (vegenSzam ? 0.4 : 0.5) : (vegenSzam ? 0.5 : 0.4));
+        if (!(elso.fajta === 'orvos' && elso.pont >= 0.6) && !tetelDontes(jeloltek.filter(x => x.fajta === 'tetel'), szm.tart.length).biztos) bizonyitek -= 0.5;   // több tételre illik
+        const pont = bizonyitek + szamBonusz - 0.15 + legjobb[j].pont;
+        if (pont > opt.pont) {
+          const utolso = par.slice(i, j).filter(x => !toltelekE(x.n) && szamErtek(x.n) == null).pop();
+          opt = { pont, reszek: [{ szoveg: eredeti.slice(i, j).filter(Boolean).join(' '), menny: szm.menny, elol: szm.elol, jeloltek, szavak: szm.tart.length, tart: szm.tart, targyeset: !!utolso && /t$/.test(utolso.o) && !sz.szavak.has(utolso.n) }].concat(legjobb[j].reszek) };
+        }
       }
       legjobb[i] = opt;
     }
+    const elemek = legjobb[0].reszek;
+    // a jelek hozzárendelése: törlés (a közelebbi tételhez; egyenlő távolságnál a tárgyeset dönt), „helyett” (az előtte állóhoz), „marad”
+    const orvosResz = e => e.jeloltek && e.jeloltek[0].fajta === 'orvos' && e.jeloltek[0].pont >= 0.6;
+    const reszIdx = elemek.map((e, k) => (e.jeloltek && !orvosResz(e) ? k : -1)).filter(k => k >= 0);
+    // a jelek előtt: a „marad” / „kivéve” jelzések, hogy a törlés ne a megtartott tételt érje
+    elemek.forEach((e, k) => {
+      if (e.jel === JEL_KIVEVE) { const u = reszIdx.find(x => x > k); if (u !== undefined) elemek[u].marad = true; }
+      if (e.jel === JEL_MARAD) { const c = reszIdx.filter(x => x < k).pop(); const c2 = c !== undefined ? c : reszIdx.find(x => x > k); if (c2 !== undefined) elemek[c2].marad = true; }
+    });
+    const torolheto = reszIdx.filter(k => !elemek[k].marad);
+    const tav = (a, b) => { let d = 0; for (let x = a + 1; x < b; x++) { const e = elemek[x]; if (e.jel || (e.kihagyott !== undefined && !toltelekE(tok[e.kihagyott]))) d++; } return d; };
+    const elhasznalt = new Set();                 // a törléshez tartozó szám („vegyél le egyet”) nem javítás
+    let maradtTorles = false, elsoReszTorolve = false, utotagTorles = false;
+    const tartomanyErtekek = [];
+    elemek.forEach((e, k) => {
+      if (!e.jel) return;
+      const lista = (e.jel === JEL_TOROL || e.jel === JEL_MINUSZ) ? torolheto : reszIdx;
+      const elotte = lista.filter(x => x < k).pop(), utana = lista.find(x => x > k);
+      if (e.jel === JEL_HELYETT) { if (elotte !== undefined) elemek[elotte].torol = true; return; }
+      if (e.jel === JEL_MARAD) { const c = elotte !== undefined ? elotte : utana; if (c !== undefined) elemek[c].marad = true; return; }
+      if (e.jel === JEL_MINDEGYIK || e.jel === JEL_TARTOMANY) {
+        for (const kk of [k + 1, k + 2].slice(0, e.jel === JEL_TARTOMANY ? 2 : 1)) { const kov = elemek[kk]; if (kov && kov.kihagyott !== undefined && szamErtek(tok[kov.kihagyott]) != null) { elhasznalt.add(kov.kihagyott); if (e.jel === JEL_TARTOMANY) tartomanyErtekek.push(szamErtek(tok[kov.kihagyott])); } }
+        if (e.jel === JEL_MINDEGYIK && elotte === undefined && e.i !== undefined && szamErtek(tok[e.i + 1] || '') != null) { elosztott = szamErtek(tok[e.i + 1]); elosztottDarab = darabSzam; }   // „két-két cirkon korona és műfog”
+        return;
+      }
+      if (e.jel === JEL_KIVEVE) { if (utana !== undefined) elemek[utana].marad = true; return; }
+      if (e.jel === JEL_TOROL || e.jel === JEL_MINUSZ) {
+        let cel;
+        if (elotte === undefined) cel = utana; else if (utana === undefined) cel = elotte;
+        else {
+          const de = tav(elotte, k), du = tav(k, utana);
+          cel = de < du ? elotte : du < de ? utana : (elemek[utana].targyeset ? utana : elemek[elotte].targyeset ? elotte : elemek[utana].menny != null ? elotte : utana);
+        }
+        if (cel === undefined) { maradtTorles = true; return; }
+        elemek[cel].torol = true;
+        if (e.jel === JEL_TOROL && cel === reszIdx[0] && elemek[cel].targyeset) elsoReszTorolve = true;
+        if (e.jel === JEL_TOROL && cel === reszIdx[0] && cel === elotte) utotagTorles = true;   // „a műfog és az ínymaszk nem kell”
+        // csökkentés: „vegyél le egyet” (szám a jel után), „töröld a két cirkon koronát” (a tétel saját száma)
+        const kov = elemek[k + 1], elo = elemek[k - 1];
+        if (kov && kov.kihagyott !== undefined && szamErtek(tok[kov.kihagyott]) != null) { elemek[cel].csokkent = szamErtek(tok[kov.kihagyott]); elemek[cel].kulonSzam = true; elhasznalt.add(kov.kihagyott); }
+        else if (e.jel === JEL_MINUSZ && elo && elo.kihagyott !== undefined && szamErtek(tok[elo.kihagyott]) != null) { elemek[cel].csokkent = szamErtek(tok[elo.kihagyott]); elemek[cel].kulonSzam = true; elhasznalt.add(elo.kihagyott); }
+        else if (elemek[cel].menny != null && elemek[cel].menny > 0) elemek[cel].csokkent = elemek[cel].menny;
+        else if (e.jel === JEL_MINUSZ) elemek[cel].csokkent = 1;      // „mínusz műfog” = eggyel kevesebb
+      }
+    });
+    if (maradtTorles && !reszIdx.length && !elemek.some(e => e.jel === JEL_MIND) && lepesek.length && lepesek[lepesek.length - 1].mod !== 'nullaz') {
+      const l = lepesek[lepesek.length - 1];
+      const sz1 = elemek.find(e => e.kihagyott !== undefined && szamErtek(tok[e.kihagyott]) != null);
+      if (sz1) { const x = szamErtek(tok[sz1.kihagyott]); if (l.mod === 'beallit') l.menny = Math.max(0, l.menny - x); else l.menny -= x; }   // „három műfog, kettő nem kell” → 1
+      else { l.menny = 0; l.mod = 'beallit'; }
+      l.torol = true; l.szoveg += ' — ' + eredeti.filter(Boolean).join(' ');
+      torlesFolytat = false; javitasFuggo = false; elozoDarabTargy = [];
+      continue;
+    }
+    if (maradtTorles && elemek.some(e => e.jel === JEL_MIND) && !torolheto.length) {   // „töröld az egészet” (… „kivéve a műfogat”)
+      const kiveve = reszIdx.map(k => tetelDontes(elemek[k].jeloltek.filter(x => x.fajta === 'tetel'), elemek[k].szavak || 2).biztos).filter(Boolean);
+      lepesek.push({ id: '*', nev: '*', menny: 0, mod: 'nullaz', szoveg: eredeti.filter(Boolean).join(' '), pont: 1, kiveve: kiveve.map(x => x.id), kiveveNev: kiveve.map(x => x.nev) });
+      for (const k of reszIdx) if (elemek[k].jeloltek && elemek[k].menny == null) elemek[k].marad = true;
+      for (const x of elemek) if (orvosResz(x)) orvos = { id: x.jeloltek[0].id, nev: x.jeloltek[0].nev };
+      if (!reszIdx.length) { torlesFolytat = false; javitasFuggo = false; elozoDarabTargy = []; continue; }
+    }
+    if (elsoReszTorolve || utotagTorles) for (const idx of (utotagTorles ? elozoDarabLepesek : elozoDarabTargy)) { const l = lepesek[idx]; if (l) { l.menny = 0; l.mod = 'beallit'; l.torol = true; } }   // visszafelé is
+    const vanSajatSzam = elemek.some(e => e.jeloltek && e.menny != null);
+    if (torlesFolytat && !vanSajatSzam && !vanJel) for (const k of reszIdx) elemek[k].torol = true;
+    torlesFolytat = reszIdx.length > 0 && !!elemek[reszIdx[reszIdx.length - 1]].torol;
+    let javitasJel = javitasFuggo; javitasFuggo = false;
+    const ujTargy = [], ujLepesek = [];
     let kihagyott = [];                              // a kimaradt szavak sorszámai
-    const kihagyottZar = () => {
-      const tart = hangTartalom(kihagyott.map(k => tok[k])).filter(t => szamErtek(t) == null);
-      if (tart.length) ismeretlen.push({ szoveg: kihagyott.map(k => eredeti[k]).join(' '), javaslatok: hangJeloltek(tart, 'tetel').filter(x => x.pont >= 0.3).slice(0, 3) });
+    const kihagyottZar = (kovetkezo = null) => {
+      const marad = kihagyott.filter(k => !JAVITAS_SZAVAK.has(tok[k]) && !BIZONYTALAN_SZAM.has(tok[k]) && !elhasznalt.has(k));
+      const tart = hangTartalom(marad.map(k => tok[k]));
+      const szamok = tart.filter(t => szamErtek(t) != null), szavak = tart.filter(t => szamErtek(t) == null);
+      // „egy ínymaszk, illetve kettő” / „két cirkon korona nem három”: a kimaradt egyetlen szám az előző tétel javítása
+      if (!szavak.length && szamok.length === 1 && kovetkezo && kovetkezo.menny != null && kovetkezo.elol) {
+        // dadogás vagy kettévágott eredmény: „két cirkon korona egy egy ínymaszk” — a magában álló szám a következő tétel száma
+      } else if (!szavak.length && szamok.length === 1 && lepesek.length && lepesek[lepesek.length - 1].mod !== 'nullaz') {
+        javit(lepesek[lepesek.length - 1], szamErtek(szamok[0])); javitasJel = false;
+      } else if (szavak.length) {
+        const x = { szoveg: marad.map(k => eredeti[k]).filter(Boolean).join(' '), javaslatok: hangJeloltek(szavak, 'tetel').filter(x => x.pont >= 0.3).slice(0, 3) };
+        if (szamok.length === 1) { x.menny = szamErtek(szamok[0]); x.mod = 'beallit'; }
+        ismeretlen.push(x);
+      }
       kihagyott = [];
     };
-    let elozoId = null;
-    for (const r of legjobb[0].reszek) {
-      if (r.kihagyott !== undefined) { kihagyott.push(r.kihagyott); continue; }
-      kihagyottZar();
-      const [a, b] = r.jeloltek;
+    for (const r of elemek) {
+      if (r.kihagyott !== undefined) { if (JAVITAS_SZAVAK.has(tok[r.kihagyott])) javitasJel = true; kihagyott.push(r.kihagyott); continue; }
+      if (r.jel) continue;
+      kihagyottZar(r);
+      const [a] = r.jeloltek;
       if (a.fajta === 'orvos' && a.pont >= 0.6) { orvos = { id: a.id, nev: a.nev }; continue; }
       const tetelek = r.jeloltek.filter(x => x.fajta === 'tetel');
-      const [t1, t2] = tetelek;
-      const biztos = t1 && t1.pont >= 0.6 && (!t2 || t1.pont - t2.pont >= 0.08 || t1.pont >= 0.97);
-      if (biztos) {
-        if (t1.id === elozoId && r.menny == null) continue;          // ugyanannak a tételnek a darabja (pl. „inlay, onlay”)
-        lepesek.push({ id: t1.id, nev: t1.nev, menny: r.menny == null ? 1 : r.menny, mod: r.menny == null || meg ? 'hozzaad' : 'beallit', szoveg: r.szoveg, pont: t1.pont });
+      if (r.marad && r.menny == null && !r.torol) continue;              // „a frézelt váll marad”
+      const d = tetelDontes(tetelek, r.szavak || 2);
+      let menny = r.menny == null ? 1 : r.menny;
+      let mod = r.menny == null || meg ? 'hozzaad' : 'beallit';
+      if (r.torol) {
+        if (r.csokkent != null && r.kulonSzam && r.menny != null) { menny = Math.max(0, r.menny - r.csokkent); mod = 'beallit'; }   // „öt műfog mínusz kettő” → 3
+        else if (r.csokkent != null) { menny = -r.csokkent; mod = 'hozzaad'; } else { menny = 0; mod = 'beallit'; }
+      } else if (elosztott != null && r.menny == null) { menny = elosztott; mod = 'beallit'; }
+      if (r.menny != null && !r.torol && darabSzam !== elosztottDarab) elosztott = null;
+      if (d.biztos && (bizonytalanSzam || tartomany) && r.menny == null && !r.torol) {   // „még pár műfog”, „két-három …”: rákérdezünk a darabszámra
+        const lehet = tartomanyErtekek.length >= 2 ? [...new Set(tartomanyErtekek)].sort((a, b) => a - b) : [2, 3, 4];
+        bizonytalan.push({ szoveg: r.szoveg, menny: lehet[0], mod: meg ? 'hozzaad' : 'beallit', javaslatok: [d.biztos], darabszam: lehet });
+        continue;
+      }
+      if (d.biztos) {
+        const t1 = d.biztos;
+        if (t1.id === elozoId && r.menny == null && !r.torol && t1.pont < 0.97 && !javitasJel) continue;   // ugyanannak a tételnek egy darabja (pl. „inlay, onlay”)
+        // csere: „két PMMA koronát, jaj nem, cirkon koronát” — az előző tétel helyett ez, az ott mondott számmal
+        if (javitasJel && lepesek.length && !r.torol) {
+          const elozo = lepesek[lepesek.length - 1];
+          if (elozo.mod !== 'nullaz' && elozo.id !== t1.id) {
+            lepesek.pop();
+            if (r.menny == null) { menny = elozo.menny; mod = elozo.mod; }
+          }
+        }
+        const lepes = { id: t1.id, nev: t1.nev, menny, mod, szoveg: r.szoveg, pont: t1.pont, kimondott: r.menny != null, meg: meg && !r.torol, torol: !!r.torol, javitas: javitasJel };
+        javitasJel = false;
+        lepesek.push(lepes);
+        if (r.targyeset && r.menny == null && !r.torol) ujTargy.push(lepesek.length - 1);
+        if (r.menny == null && !r.torol && lepes.mod === 'hozzaad') ujLepesek.push(lepesek.length - 1);
         elozoId = t1.id;
       } else {
-        bizonytalan.push({ szoveg: r.szoveg, menny: r.menny == null ? 1 : r.menny, mod: r.menny == null || meg ? 'hozzaad' : 'beallit', javaslatok: tetelek.filter(x => x.pont >= 0.3).slice(0, 4) });
+        // szám nélküli csonka szó, ami az előző tételnek is része („… inlay és onlay”): nem kérdezünk rá
+        if (elozoId && r.menny == null && !r.torol && tetelek.slice(0, 4).some(x => x.id === elozoId && x.pont >= tetelek[0].pont - 0.08)) continue;
+        // a név folytatása az előző tételé után („két cirkon korona, átmenő csavaros”): az előző lépés a hosszabb nevű tételre vált
+        const utolsoL = lepesek[lepesek.length - 1];
+        if (utolsoL && utolsoL.mod !== 'nullaz' && r.menny == null && !r.torol && r.tart) {
+          const egyutt = hangTartalom(hangTokenek(utolsoL.nev)).filter(x => szamErtek(x) == null).concat(r.tart);
+          const folyt = tetelek.slice(0, 6).filter(c => c.id !== utolsoL.id && hangJeloltCache.lista.some(j => j.id === c.id && !j.alias && egyezesR(egyutt, j.tok).tartalmaz));
+          if (folyt.length === 1) { utolsoL.id = folyt[0].id; utolsoL.nev = folyt[0].nev; utolsoL.szoveg += ', ' + r.szoveg; elozoId = folyt[0].id; continue; }
+        }
+        bizonytalan.push({ szoveg: r.szoveg, menny, mod, javaslatok: d.javaslatok });
         elozoId = null;
       }
     }
     kihagyottZar();
+    elozoDarabTargy = ujTargy; elozoDarabLepesek = ujLepesek;
+    const mi = tok.indexOf(JEL_MINDEGYIK);
+    if (mi >= 0 && szamErtek(tok[mi + 1] || '') != null) {
+      const x = szamErtek(tok[mi + 1]);
+      for (let k = lepesek.length - 1; k >= 0 && !lepesek[k].kimondott && lepesek[k].mod === 'hozzaad' && !lepesek[k].torol; k--) { lepesek[k].menny = x; lepesek[k].mod = 'beallit'; lepesek[k].kimondott = true; }
+    }
+  }
+  // ugyanaz a tétel két különböző néven, két számmal („két cirkon inlay meg egy cirkon onlay”): összeadjuk
+  const elsoBeallitas = new Map();
+  for (let k = 0; k < lepesek.length; k++) {
+    const l = lepesek[k];
+    if (l.mod !== 'beallit' || l.torol || !l.kimondott || l.javitas) continue;
+    const e = elsoBeallitas.get(l.id);
+    if (e && masikValtozat(e, l)) { e.menny += l.menny; e.szoveg += ' + ' + l.szoveg; lepesek.splice(k, 1); k--; }
+    else elsoBeallitas.set(l.id, l);
   }
   return { szoveg: String(szoveg || '').trim(), lepesek, bizonytalan, ismeretlen, orvos };
 }
+
+/* más nevek a bemondáshoz: a felhasználó választásaiból tanulja („két korona” → Cirkon korona), az Árak lapon szerkeszthető */
+const HANG_ALIAS_KULCS = 'dentAl.hangAliasok.v1';
+let hangAliasTar = null, hangAliasValtozat = 0;
+function hangAliasok() {
+  if (hangAliasTar) return hangAliasTar;
+  const tarolt = olvas(HANG_ALIAS_KULCS, null);
+  const x = objektum(tarolt); const r = terkep();
+  for (const [nev, lista] of Object.entries(x)) if (Array.isArray(lista)) {
+    const tiszta = [...new Set(lista.filter(a => typeof a === 'string').map(a => a.normalize('NFC').trim().toLocaleLowerCase('hu')).filter(a => a && a.length <= 60))].slice(0, 20);
+    if (tiszta.length) r[nev] = tiszta;
+  }
+  if (tarolt != null) hangAliasTar = r;           // az alapértelmezés a tételektől függ: amíg nincs mentve, mindig újra
+  return r;
+}
+function hangAliasMent(r) { hangAliasTar = r; hangAliasValtozat++; ir(HANG_ALIAS_KULCS, r); }
+function hangAliasTanul(szoveg, tetelNev) {      // a kimondott szöveg (szám és töltelékszó nélkül) → a választott tétel
+  const tart = hangTartalom(hangTokenek(szoveg)).filter(t => szamErtek(t) == null);
+  if (!tart.length || !adat.tetelek.some(t => t.nev === tetelNev)) return '';
+  const kifejezes = hangTokenPar(szoveg).filter(x => !toltelekE(x.n) && !JELEK.has(x.n) && szamErtek(x.n) == null).map(x => x.o).filter(Boolean).join(' ').trim().slice(0, 60);
+  if (!kifejezes || norm(kifejezes) === norm(tetelNev)) return '';
+  hangAliasTar = null;                            // friss olvasás (másik lap is írhatta)
+  const r = Object.assign(terkep(), hangAliasok());
+  for (const k of Object.keys(r)) if (k !== tetelNev) r[k] = r[k].filter(a => norm(a) !== norm(kifejezes));   // egy kifejezés csak egy tételé
+  r[tetelNev] = [...new Set([kifejezes].concat(r[tetelNev] || []))].slice(0, 20);
+  hangAliasMent(r);
+  return kifejezes;
+}
+function hangAliasBeallit(regiNev, ujNev, lista) {   // a tétel szerkesztésekor: a más nevek listája (átnevezéskor átkerül)
+  hangAliasTar = null;
+  const r = Object.assign(terkep(), hangAliasok());
+  delete r[regiNev];
+  const tiszta = [...new Set((lista || []).map(a => a.normalize('NFC').trim().toLocaleLowerCase('hu')).filter(a => a && a.length <= 60 && norm(a) !== norm(ujNev)))].slice(0, 20);
+  for (const k of Object.keys(r)) if (k !== ujNev) r[k] = r[k].filter(a => !tiszta.some(b => norm(a) === norm(b)));
+  if (tiszta.length) r[ujNev] = tiszta; else delete r[ujNev];
+  hangAliasMent(r);
+}
 function hangLepesAlkalmaz(l) {
+  if (l.mod === 'nullaz') { for (const id of Object.keys(valasztas.menny)) if (!(l.kiveve || []).includes(id)) { mennyBeallit(id, 0); sorKiemel(id); } return 0; }   // „töröld az egészet” (kivéve …)
   const regi = valasztas.menny[l.id] || 0;
-  const uj = Math.min(MAX_MENNY, l.mod === 'beallit' ? l.menny : regi + l.menny);
+  const uj = Math.max(0, Math.min(MAX_MENNY, l.mod === 'beallit' ? l.menny : regi + l.menny));
   mennyBeallit(l.id, uj); sorKiemel(l.id);
   return uj;
+}
+/* a felismerő végleges eredményei → részek; Android-on (continuous) a végleges eredmény gyakran megismétli vagy
+   magába foglalja az előzőt („két cirkon korona” → „két cirkon korona egy ínymaszk”): ezt egyszer vesszük */
+function hangReszHozzaad(reszek, alts, menet = null, halmozott = false) {
+  const tisztit = x => hangTokenek(x).join('');    // szóközök és számírás nélkül: „két fém kerámia” = „2 fémkerámia”
+  const uj = tisztit(alts[0]);
+  if (!uj) return;
+  const elozoResz = reszek.length ? reszek[reszek.length - 1] : null;
+  if (!elozoResz || elozoResz.menet !== menet) { reszek.push({ alts, menet }); return; }
+  const utolso = tisztit(elozoResz.alts[0]);
+  if (utolso && uj === utolso) return;                                   // pontos ismétlés
+  if (halmozott && utolso && uj.startsWith(utolso)) { reszek[reszek.length - 1] = { alts, menet }; return; }   // halmozott: az új tartalmazza az előzőt
+  if (halmozott && utolso && utolso.endsWith(uj)) return;                              // az előző vége ismétlődik
+  reszek.push({ alts, menet });
+}
+function hangTippErtek(ered) {                    // egy tipp: hány kérdés marad, mely tételek, hány kimondott szám
+  return { hiba: ered.bizonytalan.length + ered.ismeretlen.length, tetelek: ered.lepesek.map(l => l.id).sort().join('|'), kimondott: ered.lepesek.filter(l => l.kimondott).length };
+}
+function hangKiertekel({ szoveg = '', eredmenyek = null, alternativak = null, reszek = null } = {}) {
+  let r = reszek;
+  if (!r) {
+    r = [];
+    if (Array.isArray(eredmenyek)) for (const t of eredmenyek) hangReszHozzaad(r, [t], 'egy', true);
+    else if (Array.isArray(alternativak) && alternativak.length) r.push({ alts: alternativak.slice() });
+    else if (szoveg) r.push({ alts: [szoveg] });
+  }
+  // részenként: a felismerő első tippje, kivéve, ha egy másik kevesebb kérdést hagy, vagy ugyanazokat a tételeket pontos számmal adja
+  // („hát fémkerámia” → „hat fémkerámia”); új tételt egy hátrébb lévő tipp nem hozhat be magától
+  const valasztott = r.map(resz => {
+    if (resz.alts.length < 2) return resz.alts[0] || '';
+    let legjobb = { alt: resz.alts[0], e: hangTippErtek(hangErtelmez(resz.alts[0])) };
+    for (const alt of resz.alts.slice(1)) {
+      const e = hangTippErtek(hangErtelmez(alt));
+      if (e.hiba < legjobb.e.hiba && e.tetelek) legjobb = { alt, e };
+      else if (e.hiba === legjobb.e.hiba && e.tetelek && e.tetelek === legjobb.e.tetelek && e.kimondott > legjobb.e.kimondott) legjobb = { alt, e };
+    }
+    return legjobb.alt;
+  });
+  return hangErtelmez(valasztott.filter(Boolean).join(' '));
 }
 async function bemondas() {
   if (!hangTamogatott) return;
   keresoBezar();
   const atirat = el('p', { class: 'hang-atirat', text: '…' });
-  const jel = el('div', { class: 'hang-allapot' }, el('span', { class: 'hang-jel', 'aria-hidden': 'true' }), el('span', { text: 'Hallgatlak… mondd be a tételeket.' }));
-  const pelda = el('p', { class: 'halvany', text: 'Például: „két cirkon korona, egy ínymaszk és három műfog”. Az orvos nevét is bemondhatod. Ha végeztél, koppints a Kész gombra.' });
-  let vegso = '', kozbenso = '', hiba = null, megszakitva = false, felismero = null, hangVege = false;
-  parbeszed({
-    cim: 'Bemondás', tartalom: el('div', { class: 'hang-doboz' }, jel, atirat, pelda),
-    gombok: [
-      { szoveg: 'Mégse', ertek: null, tipus: 'masod', kattintas: () => { megszakitva = true; try { felismero && felismero.abort(); } catch (e) { /* nincs */ } } },
-      { szoveg: 'Kész', tipus: 'fo', ikon: 'pipa', kattintas: () => { try { felismero && felismero.stop(); } catch (e) { /* nincs */ } return false; } }
-    ]
-  }).then(v => { if (v === null && felismero && !hangVege) { megszakitva = true; try { felismero.abort(); } catch (e) { /* nincs */ } } });
-  try {
-    felismero = new BeszedFelismero();
-    felismero.lang = 'hu-HU'; felismero.interimResults = true; felismero.continuous = true; felismero.maxAlternatives = 1;
-  } catch (e) { dlgBezar(null); uzenet('Ezen az eszközön a beszédfelismerés nem érhető el.', { hiba: true }); return; }
-  felismero.onresult = e => {
-    kozbenso = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      if (r.isFinal) vegso += ' ' + r[0].transcript; else kozbenso += ' ' + r[0].transcript;
-    }
-    atirat.textContent = (vegso + ' ' + kozbenso).trim() || '…';
+  const elo = el('ul', { class: 'hang-elo', 'aria-live': 'polite', hidden: true });
+  const jelSzoveg = el('span', { text: 'Hallgatlak… mondd be a tételeket.' });
+  const jel = el('div', { class: 'hang-allapot' }, el('span', { class: 'hang-jel', 'aria-hidden': 'true' }), jelSzoveg);
+  const pelda = el('p', { class: 'halvany', text: 'Például: „két cirkon korona, egy ínymaszk és három műfog”. Szünetet is tarthatsz; ha végeztél, koppints a Kész gombra.' });
+  const reszek = [];                              // végleges részek, mindegyik a felismerő tippjeivel
+  let kozbenso = '', hiba = null, megszakitva = false, kesz = false, befejezve = false, felismero = null, ujrainditas = 0, csendSor = 0;
+  const kezdes = Date.now();
+  let eloIdozito = null;
+  const eloFrissit = () => {                      // élő előnézet: amit eddig felismert
+    eloIdozito = null;
+    const szoveg = reszek.map(r => r.alts[0]).concat(kozbenso ? [kozbenso] : []).join(' ').trim();
+    atirat.textContent = szoveg || '…';
+    if (!szoveg) { elo.hidden = true; return; }
+    const ered = hangErtelmez(szoveg);
+    const menny = new Map();
+    for (const l of ered.lepesek) { if (l.mod === 'nullaz') { for (const k of [...menny.keys()]) if (!(l.kiveveNev || []).includes(k)) menny.delete(k); continue; } const v = menny.get(l.nev) || 0; menny.set(l.nev, Math.max(0, l.mod === 'hozzaad' ? v + l.menny : l.menny)); }
+    elo.replaceChildren(...[...menny].filter(([, v]) => v > 0).slice(0, 8).map(([nev, v]) => el('li', null, el('span', { text: nev }), el('span', { class: 'szam', text: `${szam(v)}${NBSP}db` }))));
+    if (ered.orvos) elo.prepend(el('li', null, el('span', { text: 'Orvos' }), el('span', { text: cimzettNev(ered.orvos.nev) })));
+    elo.hidden = !elo.children.length;
   };
-  felismero.onerror = e => { hiba = e.error || 'ismeretlen'; };
-  felismero.onend = () => {
-    hangVege = true;
+  const eloUtemez = () => { if (!eloIdozito) eloIdozito = setTimeout(eloFrissit, 250); };
+  const befejez = () => {
+    if (befejezve) return; befejezve = true;
+    if (kozbenso.trim()) { hangReszHozzaad(reszek, [kozbenso.trim()], felismero); kozbenso = ''; }   // Safari: az utolsó rész köztes maradhat
     if (megszakitva) return;
-    const szoveg = (vegso + ' ' + kozbenso).trim();
-    if (!szoveg) {
+    if (!reszek.length) {
       const uzenetek = {
         'not-allowed': 'A mikrofon használata nincs engedélyezve. Engedélyezd a böngésző beállításaiban (webhely-engedélyek → mikrofon), és próbáld újra.',
-        'service-not-allowed': 'A mikrofon használata nincs engedélyezve. Engedélyezd a böngésző beállításaiban (webhely-engedélyek → mikrofon), és próbáld újra.',
+        'service-not-allowed': 'A mikrofon használata nincs engedélyezve. Engedélyezd a böngésző beállításaiban (webhely-engedélyek → mikrofon), és próbáld újra. iPhone-on a Diktálásnak is bekapcsolva kell lennie (Beállítások → Általános → Billentyűzet).',
         'audio-capture': 'Nem található mikrofon ezen az eszközön.',
         'network': 'A beszédfelismeréshez internetkapcsolat kell. Próbáld újra, ha van internet.',
         'language-not-supported': 'Ez a böngésző nem ismeri fel a magyar beszédet. Próbáld Chrome-ban vagy Safariban.'
@@ -1545,15 +2030,71 @@ async function bemondas() {
         .then(v => { if (v === 'ujra') bemondas(); });
       return;
     }
-    hangEredmeny(hangErtelmez(szoveg));
+    hangEredmeny(hangKiertekel({ reszek }));
   };
-  try { felismero.start(); } catch (e) { dlgBezar(null); uzenet('A beszédfelismerés nem indult el. Próbáld újra.', { hiba: true }); }
+  const indit = () => {
+    let f;
+    try {
+      f = new BeszedFelismero();
+      // Androidon a folyamatos mód minden részeredményt véglegesnek ad (ismétlődő szöveg, egyetlen tipp): ott mondatonként indul újra
+      f.lang = 'hu-HU'; f.interimResults = true; f.continuous = !ANDROID; f.maxAlternatives = 5;
+    } catch (e) { return false; }
+    const rogzitett = new Set();                  // ebben a menetben már feldolgozott végleges eredmények
+    f.onresult = e => {
+      if (f !== felismero) return;
+      kozbenso = ''; csendSor = 0;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) {
+          if (rogzitett.has(i)) continue;
+          rogzitett.add(i);
+          const alts = []; for (let k = 0; k < r.length; k++) { const t = String(r[k].transcript || '').trim(); if (t && !alts.includes(t)) alts.push(t); }
+          if (alts.length) hangReszHozzaad(reszek, alts, f);
+        } else kozbenso += ' ' + r[0].transcript;
+      }
+      kozbenso = kozbenso.trim();
+      eloUtemez();
+    };
+    f.onerror = e => { if (f === felismero) hiba = (e && e.error) || 'ismeretlen'; };
+    f.onend = () => {
+      if (f !== felismero) return;
+      if (kozbenso.trim()) { hangReszHozzaad(reszek, [kozbenso.trim()], f); kozbenso = ''; eloUtemez(); }
+      // szünet után a böngésző leállítja a figyelést: amíg a Kész nincs megnyomva, újraindítjuk (legfeljebb 2 percig)
+      const csend = hiba === 'no-speech';
+      if (csend) csendSor++;
+      const tovabb = !kesz && !megszakitva && (!hiba || (csend && (reszek.length ? csendSor <= 3 : csendSor <= 1)))
+        && ujrainditas < 40 && Date.now() - kezdes < 120000;
+      if (tovabb) { ujrainditas++; hiba = null; if (indit()) return; }
+      befejez();
+    };
+    felismero = f;
+    try { f.start(); } catch (e) { felismero = null; return false; }
+    return true;
+  };
+  parbeszed({
+    cim: 'Bemondás', tartalom: el('div', { class: 'hang-doboz' }, jel, atirat, elo, pelda),
+    gombok: [
+      { szoveg: 'Mégse', ertek: null, tipus: 'masod', kattintas: () => { megszakitva = true; try { felismero && felismero.abort(); } catch (e) { /* nincs */ } } },
+      { szoveg: 'Kész', tipus: 'fo', ikon: 'pipa', kattintas: () => {
+        kesz = true; jelSzoveg.textContent = 'Feldolgozás…';
+        try { felismero && felismero.stop(); } catch (e) { /* nincs */ }
+        setTimeout(() => { if (!befejezve) { befejez(); try { felismero && felismero.abort(); } catch (e) { /* nincs */ } } }, 2500);   // ha a felismerő nem jelez vissza
+        return false;
+      } }
+    ]
+  }).then(v => { document.removeEventListener('visibilitychange', hatterbe); if (v === null && !befejezve) { megszakitva = true; try { felismero && felismero.abort(); } catch (e) { /* nincs */ } } });
+  // ha az oldal a háttérbe kerül (iPhone-on ilyenkor a felismerés hibával leáll), az eddig elhangzottakkal befejezzük
+  const hatterbe = () => { if (document.hidden && !befejezve && !megszakitva) { kesz = true; try { felismero && felismero.stop(); } catch (e) { /* nincs */ } setTimeout(() => { if (!befejezve) { befejez(); try { felismero && felismero.abort(); } catch (e) { /* nincs */ } } }, 1500); } };
+  document.addEventListener('visibilitychange', hatterbe);
+  if (!indit()) { dlgBezar(null); uzenet('A beszédfelismerés nem indult el. Próbáld újra.', { hiba: true }); }
 }
+
 function hangEredmeny(ered) {
-  const elozo = { menny: Object.assign({}, valasztas.menny), orvosId: valasztas.orvosId };
+  const elozo = { menny: Object.assign({}, valasztas.menny), orvosId: valasztas.orvosId, aliasok: JSON.stringify(hangAliasok()) };
   const sorok = [];
   if (ered.orvos) { orvosValaszt(ered.orvos.id); sorok.push(el('li', null, el('span', { text: 'Orvos' }), el('span', { class: 'uj', text: cimzettNev(ered.orvos.nev) }))); }
   for (const l of ered.lepesek) {
+    if (l.mod === 'nullaz') { hangLepesAlkalmaz(l); sorok.push(el('li', null, el('span', { text: l.kiveveNev && l.kiveveNev.length ? `Minden tétel, kivéve: ${l.kiveveNev.join(', ')}` : 'Minden tétel' }), el('span', { class: 'uj szam', text: `0${NBSP}db` }))); continue; }
     const uj = hangLepesAlkalmaz(l);
     const nincsAr = valasztas.orvosId && arOf(l.id, valasztas.orvosId) == null;
     sorok.push(el('li', null, el('span', { text: l.nev }), el('span', { class: 'uj szam', text: `${szam(uj)}${NBSP}db${nincsAr ? ' · nincs ára' : ''}` })));
@@ -1563,6 +2104,18 @@ function hangEredmeny(ered) {
   if (sorok.length) t.append(el('div', { style: 'display:grid;gap:6px' }, el('p', { class: 'alcim', text: 'Beállítva' }), el('ul', { class: 'lista-valtozas' }, sorok)));
   const kerdesek = ered.bizonytalan.concat(ered.ismeretlen.map(x => Object.assign({ menny: 1, mod: 'hozzaad' }, x)));
   for (const k of kerdesek) {
+    if (k.darabszam && k.javaslatok.length === 1) {   // „két-három fémkerámia”, „pár műfog”: hány darab?
+      const j = k.javaslatok[0];
+      const doboz = el('div', { class: 'figyelmeztetes' }, el('span', { text: `„${k.szoveg}” – hány darab legyen (${j.nev})?` }));
+      const gombok = el('div', { class: 'cimkek' });
+      for (const n of k.darabszam) {
+        const g = el('button', { type: 'button', class: 'cimke cimke-gomb', text: `${n}${NBSP}db` });
+        g.addEventListener('click', () => { const uj = hangLepesAlkalmaz({ id: j.id, menny: n, mod: k.mod }); doboz.replaceChildren(el('span', { text: `${j.nev}: ${szam(uj)}${NBSP}db beállítva.` })); });
+        gombok.append(g);
+      }
+      doboz.append(gombok); t.append(doboz);
+      continue;
+    }
     const doboz = el('div', { class: 'figyelmeztetes' }, el('span', { text: k.javaslatok.length ? `„${k.szoveg}” – melyikre gondoltál?` : `„${k.szoveg}” – ilyen tételt nem találtam.` }));
     if (k.javaslatok.length) {
       const gombok = el('div', { class: 'cimkek' });
@@ -1570,7 +2123,8 @@ function hangEredmeny(ered) {
         const g = el('button', { type: 'button', class: 'cimke cimke-gomb', text: `${j.nev}${k.menny > 1 ? ` (${k.menny}${NBSP}db)` : ''}` });
         g.addEventListener('click', () => {
           const uj = hangLepesAlkalmaz({ id: j.id, menny: k.menny, mod: k.mod });
-          doboz.replaceChildren(el('span', { text: `${j.nev}: ${szam(uj)}${NBSP}db beállítva.` }));
+          const kif = hangAliasTanul(k.szoveg, j.nev);
+          doboz.replaceChildren(el('span', { text: `${j.nev}: ${szam(uj)}${NBSP}db beállítva.${kif ? ` Ezentúl a „${kif}” szót is így érti (az Árak lapon a tételnél átírható).` : ''}` }));
         });
         gombok.append(g);
       }
@@ -1582,18 +2136,26 @@ function hangEredmeny(ered) {
   const ujra = el('button', { type: 'button', class: 'gomb-link', html: `${ikon('mikrofon')}<span>Újra bemondom</span>`, style: 'display:inline-flex;align-items:center;gap:6px;justify-self:start' });
   ujra.addEventListener('click', () => { dlgBezar(null); bemondas(); });
   t.append(ujra);
-  const vanValtozas = sorok.length > 0;
+  const vanValtozas = sorok.length > 0 || kerdesek.length > 0;
   parbeszed({
-    cim: vanValtozas ? 'Bemondás kész' : 'Bemondás', tartalom: t, szeles: true,
+    cim: sorok.length ? 'Bemondás kész' : 'Bemondás', tartalom: t, szeles: true,
     gombok: (vanValtozas ? [{ szoveg: 'Visszavonás', ertek: 'vissza', tipus: 'masod' }] : []).concat([{ szoveg: 'Kész', ertek: true, tipus: 'fo' }])
   }).then(v => {
     if (v !== 'vissza') return;
     valasztas.menny = elozo.menny; if (elozo.orvosId !== valasztas.orvosId) valasztas.orvosId = elozo.orvosId;
+    if (JSON.stringify(hangAliasok()) !== elozo.aliasok) hangAliasMent(JSON.parse(elozo.aliasok));
     valasztasIgazit(); orvosValasztoRajzol(); listaArakFrissit(); osszegFrissit();
     uzenet('A bemondás változásai visszavonva.');
   });
 }
-$('#hangGomb').addEventListener('click', () => bemondas());
+$('#hangGomb').addEventListener('click', () => {
+  // iPhone-on a kezdőképernyőre tett alkalmazásban az Apple nem engedi a beszédfelismerést (csak Safariban működik)
+  if (IOS && (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches))) {
+    parbeszed({ cim: 'Bemondás', leiras: 'iPhone-on a kezdőképernyőről indított alkalmazásban az Apple nem engedi a beszédfelismerést. Nyisd meg az árlistát Safariban, ott a Bemondás működik. Itt a keresővel adhatsz hozzá tételeket.' });
+    return;
+  }
+  bemondas();
+});
 
 
 /* ======================================================================
@@ -2397,6 +2959,26 @@ function nevMezo(cimke, ertek) {
 }
 const nevFoglalt = (tomb, nev, kiveve) => tomb.some(x => x.id !== kiveve && norm(x.nev) === norm(nev));
 
+function aliasMezo(tetelNev) {                    // más nevek a bemondáshoz (pl. „zirkon, cirkónia”)
+  const inp = el('input', { id: 'aliasMezo', type: 'text', value: (hangAliasok()[tetelNev] || []).join(', '), autocomplete: 'off', maxlength: '400', placeholder: 'például zirkon, cirkónia' });
+  const doboz = el('div', { class: 'mezo' }, el('label', { for: 'aliasMezo', text: 'Más nevek a bemondáshoz (nem kötelező)' }), inp,
+    el('p', { class: 'halvany mezo-sugo', text: 'Vesszővel elválasztva. Ha bemondásnál egy kérdésre ezt a tételt választod, a kimondott szót ide magától felveszi.' }));
+  const hibaP = el('p', { class: 'mezo-hiba', hidden: true });
+  doboz.insertBefore(hibaP, doboz.children[2] || null);
+  const ertek = () => inp.value.split(/[,;]+/).map(a => a.trim()).filter(Boolean);
+  return {
+    inp, doboz, ertek,
+    mutat: s => { hibaP.textContent = s; hibaP.hidden = false; inp.focus(); },
+    hiba: (sajatId, sajatNev) => {
+      for (const a of ertek()) {
+        if (a.length > 60) return `„${a.slice(0, 20)}…” túl hosszú (legfeljebb 60 karakter).`;
+        if (nevFoglalt(adat.tetelek, a, sajatId)) return `„${a}” egy másik tétel neve, ezért nem lehet ennek a más neve.`;
+        if (!hangTartalom(hangTokenek(a)).filter(x => szamErtek(x) == null).length) return `„${a}” csak töltelékszóból vagy számból áll, a bemondás nem venné figyelembe.`;
+      }
+      return null;
+    }
+  };
+}
 function csoportMezo(ertek) {                     // a tétel csoportja (pl. Protetika); üresen hagyható
   const nevek = [...new Set(adat.tetelek.map(t => t.csoport).filter(Boolean))];
   const inp = el('input', { id: 'csoportMezo', type: 'text', value: ertek || '', list: 'csoportLista', autocomplete: 'off', maxlength: '80', placeholder: 'például Protetika' });
@@ -2453,6 +3035,7 @@ async function elemSzerkeszt(fajta, id) {
   const m = nevMezo(tetel ? 'Megnevezés' : 'Név', x.nev);
   const em = tetel ? null : emailMezo(x.email || '');
   const cs = tetel ? csoportMezo(x.csoport || '') : null;
+  const al = tetel ? aliasMezo(x.nev) : null;
   const szomszed = (d) => {                       // a tétel a saját csoportján belül mozog
     const t = tomb(); const i = t.findIndex(y => y.id === id); if (i < 0) return -1;
     if (!tetel) { const j = i + d; return j >= 0 && j < t.length ? j : -1; }
@@ -2480,11 +3063,15 @@ async function elemSzerkeszt(fajta, id) {
   elore.addEventListener('click', () => mozgat(-1)); hatra.addEventListener('click', () => mozgat(1));
   const torles = el('button', { type: 'button', class: 'gomb-link veszely', text: tetel ? 'Tétel törlése' : 'Orvos törlése' });
   torles.addEventListener('click', () => dlgBezar({ mod: 'torol' }));
-  const tartalom = el('div', { style: 'display:grid;gap:16px' }, m.doboz, em && em.doboz, cs && cs.doboz);
+  const tartalom = el('div', { style: 'display:grid;gap:16px' }, m.doboz, em && em.doboz, cs && cs.doboz, al && al.doboz);
   if (tomb().length > 1) tartalom.append(el('div', { class: 'mozgato' }, hely, elore, hatra));
   tartalom.append(el('div', null, torles));
   helyFrissit();
-  const kesz = () => { const v = m.ervenyes(ell); if (!v) return; const e = em ? em.ervenyes() : ''; if (e === null) return; dlgBezar({ mod: 'ment', nev: v, email: e, csoport: cs ? cs.ertek() : '' }); };
+  const kesz = () => {
+    const v = m.ervenyes(ell); if (!v) return; const e = em ? em.ervenyes() : ''; if (e === null) return;
+    if (al) { const hiba = al.hiba(id, v); if (hiba) { al.mutat(hiba); return; } }
+    dlgBezar({ mod: 'ment', nev: v, email: e, csoport: cs ? cs.ertek() : '', aliasok: al ? al.ertek() : null });
+  };
   for (const mezo of [m.inp, em && em.inp].filter(Boolean)) mezo.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); kesz(); } });
   const r = await parbeszed({
     cim: tetel ? 'Tétel szerkesztése' : 'Orvos szerkesztése', tartalom, fokusz: m.inp,
@@ -2495,6 +3082,7 @@ async function elemSzerkeszt(fajta, id) {
   if (r.mod === 'ment') {
     const emailValt = !tetel && (r.email || '') !== (most.email || '');
     const csoportValt = tetel && (r.csoport || '') !== (most.csoport || '');
+    if (tetel && r.aliasok && (r.nev !== most.nev || r.aliasok.join('|') !== (hangAliasok()[most.nev] || []).join('|'))) hangAliasBeallit(most.nev, r.nev, r.aliasok);
     if (r.nev !== most.nev || emailValt || csoportValt) {
       most.nev = r.nev; if (!tetel) most.email = r.email || ''; else most.csoport = r.csoport || '';
       mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
@@ -2507,7 +3095,7 @@ async function elemSzerkeszt(fajta, id) {
     if (!ok) { arTablaUjra(gombSzelektor); return; }
     const t = tomb(); const i = t.findIndex(y => y.id === id); if (i < 0) return;
     t.splice(i, 1);
-    if (tetel) delete adat.arak[id]; else for (const tk of Object.keys(adat.arak)) delete adat.arak[tk][id];
+    if (tetel) { delete adat.arak[id]; if (hangAliasok()[most.nev]) hangAliasBeallit(most.nev, most.nev, []); } else for (const tk of Object.keys(adat.arak)) delete adat.arak[tk][id];
     mentveJelez(mentAdatok()); arTablaRajzol(); arakValtoztak(true);
     $(tetel ? '#ujTetelGomb' : '#ujOrvosGomb').focus({ preventScroll: true });
   }
@@ -3325,6 +3913,8 @@ window.addEventListener('storage', e => {             // másik lapon történt 
     beall = objektum(olvas(KULCS.beall, null)); beallRajzol(); elokeszitett = null;
   } else if (e.key === KULCS.github) {
     gb = objektum(olvas(KULCS.github, null)); ghRajzol();
+  } else if (e.key === HANG_ALIAS_KULCS) {
+    hangAliasTar = null; hangAliasValtozat++;
   }
 });
 let utolsoNap = datumok(new Date()).kulcs;
@@ -3669,7 +4259,7 @@ function indul() {
 }
 
 // teszteléshez és hibakereséshez (a felület nem használja)
-window.dentAl = { linkKeszit, linkOlvas, hangErtelmez, keresesTalalatok, verzio: VERZIO, pdfBemenet, elokeszit, get elokeszitett() { return elokeszitett; }, szam, ft, datumok, sorszamKovetkezo, offlineAllapot, nevelo, cimzettNev, fajlnev, arErtelmez };
+window.dentAl = { hangKiertekel, hangAliasTanul, linkKeszit, linkOlvas, hangErtelmez, keresesTalalatok, verzio: VERZIO, pdfBemenet, elokeszit, get elokeszitett() { return elokeszitett; }, szam, ft, datumok, sorszamKovetkezo, offlineAllapot, nevelo, cimzettNev, fajlnev, arErtelmez };
 
 indul();
 })();
