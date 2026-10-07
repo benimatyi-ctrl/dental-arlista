@@ -70,6 +70,18 @@ Az árak a tételek és az orvosok **neve** alapján párosulnak. Ha egy nevet �
 
 Az árak alapból csak azon a telefonon, abban a böngészőben vannak tárolva. Az Árak lapon a **Mentés fájlba** gomb letölt egy mentést (JSON), amit a **Visszatöltés fájlból** gombbal bármikor, akár másik telefonon is visszatölthetsz. Kényelmesebb a GitHub-mentés (lent), ami ezt magától elvégzi.
 
+### Árak átküldése linkben
+
+Az árak egy linkkel is átvihetők egy másik eszközre (például a számítógépről a telefonra):
+
+1. Árak lap → **Küldés linkben** → **Megosztás** vagy **Másolás**, és küldd el magadnak (e-mailben, üzenetben).
+2. A másik eszközön nyisd meg a linket Chrome-ban vagy Safariban. Az alkalmazás megmutatja, mi változik (új orvos, új tételek, változó árak), és csak a **Betöltés** gombra tölti be.
+
+- A link orvosainak árai a linkből jönnek; az ott már meglévő többi orvos és tétel nem változik. Ha az eszközön még a beépített mintaadatok (Peti, Dani, Anna) vannak, azok helyére kerülnek.
+- Az árak a link `#` utáni részében vannak, ezért nem kerülnek fel semmilyen szerverre, de maga a link tartalmazza az árakat: csak annak küldd el, aki láthatja őket.
+- Ha a link egy üzenetküldő (pl. Messenger) beépített böngészőjében nyílik meg, az árak csak ott lesznek meg. Ilyenkor a felül megjelenő **Link másolása** gombbal másold ki, és nyisd meg Chrome-ban vagy Safariban.
+- iPhone-on a kezdőképernyőre tett alkalmazás külön tárhelyet használ, mint a Safari. Ott az Árak lap **Betöltés linkből** gombjával illeszd be a linket.
+
 ## Mentés GitHubra
 
 Bekapcsolva az alkalmazás egy **privát** GitHub-tárolóba ment:

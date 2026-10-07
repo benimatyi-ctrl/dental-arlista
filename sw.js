@@ -3,7 +3,7 @@
    Az index.html magától regisztrálja, ha ez a fájl mellette van.
    Az index.html frissítése magától átjön (az oldalt mindig a hálózatról próbálja először, legfeljebb 3 másodpercig).
    Ha az ikonokat vagy a manifestet cseréled, emeld a VERZIO-t. */
-const VERZIO = 'v2';
+const VERZIO = 'v3';
 const ELOTAG = 'dental-arlista-';                 // a user.github.io origin a felhasználó minden repójáé közös
 const TAR = ELOTAG + VERZIO;
 const STATIKUS = ['manifest.webmanifest', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];

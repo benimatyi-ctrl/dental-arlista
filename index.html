@@ -265,6 +265,7 @@ p { margin: 0; }
 .mezo input { min-height: 52px; padding: 0 14px; border: 1px solid var(--vonal-mezo); border-radius: 12px; font-size: 17px; background: var(--papir); }
 .mezo input:focus { outline: none; border-color: var(--kiemeles); box-shadow: 0 0 0 3px var(--kiemeles-halvany); }
 .mezo .mezo-hiba { font-size: 14px; }
+.link-mezo { width: 100%; min-height: 96px; padding: 10px 12px; border: 1px solid var(--vonal-mezo); border-radius: 12px; background: var(--zebra); color: var(--szoveg); font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; resize: none; }
 .mozgato { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .mozgato .gomb { min-height: 48px; padding: 0 14px; flex: 1 1 120px; }
 .mozgato .halvany { flex: 1 1 100%; font-size: 14px; }
@@ -453,6 +454,11 @@ p { margin: 0; }
       <button type="button" class="gomb gomb-masod" id="jsonMentesGomb">Mentés fájlba</button>
       <button type="button" class="gomb gomb-masod" id="jsonBetoltesGomb">Visszatöltés fájlból</button>
     </div>
+    <p>Másik eszközre (például a telefonodra) egy linkkel is átteheted az árakat: ott a link megnyitásakor betöltődnek, az ott lévő többi orvos megmarad.</p>
+    <div class="gombsor">
+      <button type="button" class="gomb gomb-masod" id="linkKuldesGomb">Küldés linkben</button>
+      <button type="button" class="gomb gomb-masod" id="linkBetoltesGomb">Betöltés linkből</button>
+    </div>
     <input type="file" id="jsonFajl" class="lathatatlan" tabindex="-1" aria-hidden="true" accept=".json,application/json,.txt,text/plain">
     <button type="button" class="gomb-link" id="importVisszaGomb" hidden>Visszaállítás az utolsó betöltés előtti árakra</button>
   </section>
@@ -532,9 +538,10 @@ const ALAP_CONFIG = {
   gmailGomb: true, emailTargy: 'Árlista – {cegnev} – {datum}', emailSzoveg: 'Tisztelt {cimzett}!\n\nMellékelten küldöm az árlistát.\n\nÜdvözlettel:\n{cegnev}'
 };
 const C = Object.assign({}, ALAP_CONFIG, window.CONFIG || {});
-const VERZIO = '1.4.0';
+const VERZIO = '1.5.0';
 const NBSP = '\u{00A0}';
 const MAX_MENNY = 9999;
+const MAX_ORVOS = 500, MAX_TETEL = 5000;          // ennél több a mentésben / a linkben: nem töltjük be
 const MAX_AR = 99999999;                         // 99 999 999 Ft / db
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const BEEPITETT_BONGESZO = /FBAN|FBAV|FB_IAB|Instagram|Messenger|MicroMessenger|\bLine\//i.test(navigator.userAgent);
@@ -709,7 +716,11 @@ function alapAdatok() {
   return { formatum: 1, orvosok, tetelek, arak, modositva: null };
 }
 const ervenyesAr = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_AR;
-const emailTiszta = s => (typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) ? s.trim().slice(0, 200) : '');
+const emailTiszta = s => {                         // hossz-korlát a regex előtt; a tartomány-rész osztályai diszjunktak (nincs visszalépés-robbanás)
+  if (typeof s !== 'string' || s.length > 400) return '';
+  const t = s.trim();
+  return t.length <= 254 && /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(t) ? t : '';
+};
 function ellenorzottAdatok(x) {
   if (!x || typeof x !== 'object' || !Array.isArray(x.orvosok) || !Array.isArray(x.tetelek)) return null;
   const orvosok = [], tetelek = [], arak = {}, oId = new Set(), tId = new Set();
@@ -2504,9 +2515,10 @@ async function elemSzerkeszt(fajta, id) {
 
 /* ---------- Excel-import ---------- */
 const terkep = () => Object.create(null);       // név szerinti árak: prototípus nélküli objektum
-function nevesForma(a) {
-  const emailek = {};
+function nevesForma(a) {                         // az árakat a kapott adatból olvassa (nem a globális adat-ból)
+  const emailek = terkep();
   for (const o of a.orvosok) if (o.email) emailek[o.nev] = o.email;
+  const arOf = (tId, oId) => { const r = a.arak && a.arak[tId]; return r && Object.prototype.hasOwnProperty.call(r, oId) && ervenyesAr(r[oId]) ? r[oId] : null; };
   return {
     orvosok: a.orvosok.map(o => o.nev),
     emailek,
@@ -2655,8 +2667,8 @@ function cimkeLista(nevek, osztaly) {
   }
   return doboz;
 }
-function valtozasParbeszed({ cim, forras, uj, figy = [], egyebValtozas = '', igenSzoveg = 'Árak felülírása' }) {
-  const d = osszevet(nevesForma(adat), uj);
+function valtozasParbeszed({ cim, forras, uj, figy = [], egyebValtozas = '', igenSzoveg = 'Árak felülírása', regi = null, megjegyzes = '' }) {
+  const d = osszevet(regi || nevesForma(adat), uj);
   const torlodik = d.torlodoOrvos.length + d.torlodoTetel.length;
   const t = el('div', { style: 'display:grid;gap:14px' });
   t.append(el('p', { class: 'halvany', text: forras }));
@@ -2670,6 +2682,7 @@ function valtozasParbeszed({ cim, forras, uj, figy = [], egyebValtozas = '', ige
   if (d.ujOrvos.length) osszegzo.append(el('span', { class: 'cimke uj', text: `${d.ujOrvos.length}${NBSP}új orvos` }));
   if (d.ujTetel.length) osszegzo.append(el('span', { class: 'cimke uj', text: `${d.ujTetel.length}${NBSP}új tétel` }));
   t.append(osszegzo);
+  if (megjegyzes) t.append(el('p', { class: 'halvany', text: megjegyzes }));
   const resz = (cimke, nevek, osztaly) => (nevek.length ? el('div', { style: 'display:grid;gap:6px' }, el('p', { class: 'alcim', text: `${cimke} (${nevek.length})` }), cimkeLista(nevek, osztaly)) : null);
   t.append(...[resz('Törlődő orvos', d.torlodoOrvos, 'torol'), resz('Törlődő tétel', d.torlodoTetel, 'torol')].filter(Boolean));
   if (d.valtozas.length) {
@@ -2710,7 +2723,7 @@ function importVisszaallit() {
   adat = v.a; mentAdatok(); torolKulcs(KULCS.elozo);
   const regiV = objektum(v.e.valasztas);
   for (const [k, n] of Object.entries(objektum(regiV.menny))) if (tetelById(k) && !valasztas.menny[k] && Number.isInteger(n) && n > 0 && n <= MAX_MENNY) valasztas.menny[k] = n;
-  if (!valasztas.orvosId && orvosById(regiV.orvosId)) valasztas.orvosId = regiV.orvosId;
+  if (orvosById(regiV.orvosId)) valasztas.orvosId = regiV.orvosId;
   arTablaRajzol(); arakValtoztak(true); $('#importVisszaGomb').hidden = true;
   uzenet('A betöltés előtti árak visszaálltak.');
 }
@@ -2744,14 +2757,16 @@ function mentesErtelmez(j) {                       // a JSON-mentés (fájlból 
   if (!j || j.alkalmazas !== 'dentAl-arlista' || !Array.isArray(j.orvosok) || !Array.isArray(j.tetelek)) throw F('Ez nem a dentÁl árlista mentése. Válaszd a „Mentés fájlba” gombbal készült .json fájlt.');
   const figy = [];
   if (Number(j.formatum) > 1) figy.push('A mentés az alkalmazás újabb változatából származik; betöltés után ellenőrizd az árakat.');
-  const orvosok = [...new Set(j.orvosok.filter(x => typeof x === 'string' && x.trim()).map(x => x.normalize('NFC').trim()))];
+  if (j.orvosok.length > MAX_ORVOS || j.tetelek.length > MAX_TETEL) throw F(`Túl sok orvos vagy tétel (legfeljebb ${MAX_ORVOS} orvos és ${MAX_TETEL} tétel tölthető be).`);
+  const orvosok = [...new Set(j.orvosok.filter(x => typeof x === 'string' && x.trim()).map(x => x.normalize('NFC').trim().slice(0, 120)))];
+  const oHalmaz = new Set(orvosok);
   const lattuk = new Set(); const tetelek = []; let kimaradt = 0;
   for (const t of j.tetelek) {
     if (!t || typeof t.nev !== 'string' || !t.nev.trim()) continue;
-    const nev = t.nev.normalize('NFC').trim(); if (lattuk.has(nev)) continue; lattuk.add(nev);
+    const nev = t.nev.normalize('NFC').trim().slice(0, 200); if (lattuk.has(nev)) continue; lattuk.add(nev);
     const arak = terkep(); const forras = objektum(t.arak);
-    for (const o of orvosok) {
-      if (!Object.prototype.hasOwnProperty.call(forras, o) || forras[o] == null) continue;
+    for (const o of Object.keys(forras)) {          // a tétel saját árain megyünk végig (nem orvos × tétel)
+      if (!oHalmaz.has(o) || forras[o] == null) continue;
       if (ervenyesAr(forras[o])) arak[o] = forras[o];
       else { kimaradt++; if (kimaradt <= 5) figy.push(`${nev} · ${o}: „${String(forras[o])}” nem érvényes ár, kimarad.`); }
     }
@@ -3366,13 +3381,251 @@ function beepitettBongeszoFigyelmeztetes() {
   const f = $('#beepitettFigy');
   const masol = el('button', { type: 'button', class: 'gomb-link', text: 'Link másolása' });
   masol.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(location.href.split('#')[0]); uzenet('A link a vágólapra került. Illeszd be Safariba vagy Chrome-ba.'); }
-    catch (e) { uzenet(`Másold ki ezt a címet: ${location.href.split('#')[0]}`, { ido: 10000 }); }
+    linkMasolas(utolsoLink || linkEredeti || location.href.split('#')[0], 'A link a vágólapra került. Illeszd be Safariba vagy Chrome-ba.');
   });
   f.innerHTML = ikon('figyelem');
   f.append(el('div', null, el('p', { text: 'Ebben a beépített böngészőben a PDF letöltése és megosztása nem mindig működik. Nyisd meg az oldalt Safariban vagy Chrome-ban.' }), masol));
   f.hidden = false;
 }
+
+/* ======================================================================
+   Árak linkben: az adat a link „#” utáni részében utazik, ezért nem kerül
+   szerverre (a böngésző a # utáni részt nem küldi el). Megnyitáskor előnézet,
+   és csak jóváhagyás után töltődik be; a többi orvos és tétel megmarad.
+   ====================================================================== */
+const LINK_ELO = '#adatok=';
+const LINK_MAX_KOD = 400000;                      // a link adat-részének felső határa (karakter)
+const LINK_MAX_BAJT = 5 * 1024 * 1024;            // kicsomagolva legfeljebb ennyi bájt
+const LINK_FIGYELMEZTET = 4000;                   // e fölött üzenetküldőben levágódhat (Viber, Telegram, SMS)
+const LINK_TILT = 60000;                          // e fölött már nem adunk linket (e-mailben is kockázatos)
+const linkEredeti = location.hash.startsWith(LINK_ELO) ? location.href : null;
+const LINK_SERULT = 'A link hiányos vagy sérült. Kérd el újra, és másold ki teljes egészében.';
+const IOS_BONGESZOBEN = IOS && !(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+
+function b64urlKodol(bajtok) {
+  let s = '';
+  for (let i = 0; i < bajtok.length; i += 0x8000) s += String.fromCharCode.apply(null, bajtok.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDekodol(s) {
+  const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+  const ki = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) ki[i] = b.charCodeAt(i);
+  return ki;
+}
+async function folyamOlvas(folyam, max) {         // egy bájtfolyam beolvasása, mérethatárral (tömörítési bomba ellen)
+  const olvaso = folyam.getReader(); const darabok = []; let n = 0;
+  for (;;) {
+    const { done, value } = await olvaso.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { try { await olvaso.cancel(); } catch (e) { /* nincs */ } throw F('A link túl sok adatot tartalmaz. Használd a mentést fájlba.'); }
+    darabok.push(value);
+  }
+  const ki = new Uint8Array(n); let p = 0;
+  for (const d of darabok) { ki.set(d, p); p += d.length; }
+  return ki;
+}
+// „d.” = zlib (deflate: Chrome 80+, Safari 16.4+, Firefox 113+), „z.” = nyers deflate (csak olvasásra), „j.” = tömörítetlen
+const LINK_TOMORITES = { d: 'deflate', z: 'deflate-raw' };
+function kitomoritoVan(forma) {
+  if (typeof DecompressionStream !== 'function') return false;
+  try { new DecompressionStream(forma); return true; } catch (e) { return false; }
+}
+async function linkKeszit(neves) {
+  const emailek = terkep();
+  for (const o of neves.orvosok) if (neves.emailek && neves.emailek[o]) emailek[o] = neves.emailek[o];
+  const tartalom = { alkalmazas: 'dentAl-arlista', formatum: 1, mentve: new Date().toISOString(), cegnev: C.cegnev, orvosok: neves.orvosok, emailek, tetelek: neves.tetelek };
+  const bajtok = new TextEncoder().encode(JSON.stringify(tartalom));
+  let kod = null;
+  if (typeof CompressionStream === 'function') {
+    try { kod = 'd.' + b64urlKodol(await folyamOlvas(new Blob([bajtok]).stream().pipeThrough(new CompressionStream('deflate')), LINK_MAX_BAJT)); }
+    catch (e) { kod = null; }
+  }
+  if (!kod) kod = 'j.' + b64urlKodol(bajtok);
+  return location.href.split('#')[0].split('?')[0] + LINK_ELO + kod;
+}
+async function linkOlvas(link) {
+  const s = String(link || '').trim();
+  const i = s.indexOf(LINK_ELO);
+  if (i < 0) throw F('Ebben nincsenek árak. A másik eszközön az Árak lap „Küldés linkben” gombjával készült linket illeszd be.');
+  const kod = s.slice(i + LINK_ELO.length).replace(/\s+/g, '');
+  if (kod.length > LINK_MAX_KOD) throw F('A link túl hosszú. Használd a mentést fájlba.');
+  const m = kod.match(/^([dzj])\.([A-Za-z0-9_-]+)$/);
+  if (!m) throw F(LINK_SERULT);
+  let bajtok;
+  try { bajtok = b64urlDekodol(m[2]); } catch (e) { throw F(LINK_SERULT); }
+  if (m[1] !== 'j') {
+    const forma = LINK_TOMORITES[m[1]];
+    if (!kitomoritoVan(forma)) throw F('Ez a böngésző túl régi a link megnyitásához. Frissítsd a böngészőt (vagy nyisd meg Chrome-ban), esetleg használd a mentést fájlba.');
+    try { bajtok = await folyamOlvas(new Blob([bajtok]).stream().pipeThrough(new DecompressionStream(forma)), LINK_MAX_BAJT); }
+    catch (e) { if (e instanceof FelhasznaloiHiba) throw e; throw F(LINK_SERULT); }
+  }
+  let j;
+  try { j = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bajtok)); } catch (e) { throw F(LINK_SERULT); }
+  if (j && typeof j === 'object') delete j.beallitasok;   // a link csak árakat és e-mail-címeket visz át
+  let m2;
+  try { m2 = mentesErtelmez(j); }
+  catch (e) { throw F(e instanceof FelhasznaloiHiba && /Túl sok/.test(e.message) ? e.message : 'Ez a link nem a dentÁl árlista árait tartalmazza, vagy üres. Kérd el újra.'); }
+  return linkEgyszerusit(m2);
+}
+function linkEgyszerusit(m) {                     // a csak kis- és nagybetűben, ékezetben vagy szóközben eltérő nevek egybe (mint a nevFoglalt)
+  const oAlias = new Map(); const orvosok = [];
+  for (const o of m.orvosok) { const k = norm(o); if (!oAlias.has(k)) { oAlias.set(k, o); orvosok.push(o); } }
+  const emailek = terkep();
+  for (const [o, e] of Object.entries(m.emailek || {})) { const v = oAlias.get(norm(o)); if (v && !emailek[v]) emailek[v] = e; }
+  const tLatott = new Set(); const tetelek = [];
+  for (const t of m.tetelek) {
+    const k = norm(t.nev); if (tLatott.has(k)) continue; tLatott.add(k);
+    const arak = terkep();
+    for (const o of Object.keys(t.arak)) { const v = oAlias.get(norm(o)); if (v && !(v in arak)) arak[v] = t.arak[o]; }
+    tetelek.push({ nev: t.nev, arak, csoport: t.csoport || '' });
+  }
+  return Object.assign({}, m, { orvosok, emailek, tetelek });
+}
+function mintaAdatE() {                           // a beépített mintaadatok (Peti, Dani, Anna; tetel1–4) változatlanok-e (árakkal, e-mailekkel együtt)
+  const lenyomat = a => { const n = nevesForma(a); return JSON.stringify([n.orvosok, Object.entries(n.emailek), n.tetelek.map(t => [t.nev, t.csoport, Object.entries(t.arak)])]); };
+  return lenyomat(adat) === lenyomat(alapAdatok());
+}
+function linkOsszefesul(m) {                      // a link orvosainak árai a linkből jönnek; minden más marad
+  const n = nevesForma(adat);
+  const orvosok = n.orvosok.slice();
+  const helyiO = new Map(orvosok.map(o => [norm(o), o]));
+  const oNev = new Map();                         // a link orvosneve → a helyi név (a helyi írásmód marad)
+  for (const o of m.orvosok) {
+    const k = norm(o);
+    if (!helyiO.has(k)) { orvosok.push(o); helyiO.set(k, o); }
+    oNev.set(o, helyiO.get(k));
+  }
+  const linkO = new Set(oNev.values());
+  const emailek = Object.assign(terkep(), n.emailek);
+  for (const [o, e] of Object.entries(m.emailek || {})) if (oNev.has(o) && e) emailek[oNev.get(o)] = e;
+  const tetelek = n.tetelek.map(t => ({ nev: t.nev, csoport: t.csoport || '', arak: Object.assign(terkep(), t.arak) }));
+  const nevSzerint = new Map(tetelek.map(t => [norm(t.nev), t]));
+  for (const t of tetelek) for (const o of linkO) delete t.arak[o];
+  for (const lt of m.tetelek) {                    // előbb a meglévő, csoport nélküli tételek kapják meg a link szerinti csoportot
+    const t = nevSzerint.get(norm(lt.nev));
+    if (t && !t.csoport && lt.csoport) t.csoport = lt.csoport;
+  }
+  for (const lt of m.tetelek) {
+    let t = nevSzerint.get(norm(lt.nev));
+    if (!t) {
+      t = { nev: lt.nev, csoport: lt.csoport || '', arak: terkep() };
+      let hova = -1;                              // a saját csoportja végére, különben a lista végére
+      if (t.csoport) for (let k = tetelek.length - 1; k >= 0; k--) if (tetelek[k].csoport === t.csoport) { hova = k + 1; break; }
+      if (hova < 0) tetelek.push(t); else tetelek.splice(hova, 0, t);
+      nevSzerint.set(norm(t.nev), t);
+    }
+    for (const o of Object.keys(lt.arak)) if (oNev.has(o)) t.arak[oNev.get(o)] = lt.arak[o];
+  }
+  return { orvosok, emailek, csoportVan: true, tetelek };
+}
+
+/* a link kimásolása; ha a vágólap nem érhető el, kijelölhető mezőben mutatjuk */
+function linkMezo(link) {
+  const mezo = el('textarea', { class: 'link-mezo', readonly: '', rows: '3', 'aria-label': 'Az árakat tartalmazó link', spellcheck: 'false' });
+  mezo.value = link;
+  const kijelol = () => { try { mezo.select(); setTimeout(() => { try { mezo.setSelectionRange(0, mezo.value.length); } catch (e) { /* nincs */ } }, 0); } catch (e) { /* nincs */ } };
+  mezo.addEventListener('focus', kijelol); mezo.addEventListener('click', kijelol);
+  return mezo;
+}
+async function linkMasolas(link, siker) {
+  try { await navigator.clipboard.writeText(link); uzenet(siker, { ido: 8000 }); return true; }
+  catch (e) {
+    parbeszed({ cim: 'A link kimásolása', szeles: true, gombok: [{ szoveg: 'Kész', ertek: true, tipus: 'fo' }],
+      tartalom: el('div', { style: 'display:grid;gap:12px' }, el('p', { text: 'Bökj a mezőbe, jelöld ki a teljes linket, és másold ki.' }), linkMezo(link)) });
+    return false;
+  }
+}
+
+let linkFolyamatban = false, kovetkezoLink = null, utolsoLink = null;
+async function linkBetolt(link) {
+  utolsoLink = link;
+  if (linkFolyamatban) { kovetkezoLink = link; if (dlg.open) dlgBezar(null); return false; }   // újabb link: az előző előnézete bezárul
+  linkFolyamatban = true;
+  try {
+    let m;
+    try { m = await linkOlvas(link); }
+    catch (err) {
+      if (kovetkezoLink) return false;
+      await parbeszed({ cim: 'A link nem tölthető be', leiras: err instanceof FelhasznaloiHiba ? err.message : 'A link beolvasása nem sikerült. Kérd el újra, és próbáld meg még egyszer.' });
+      return false;
+    }
+    if (kovetkezoLink) return false;
+    const minta = mintaAdatE();
+    const uj = minta ? { orvosok: m.orvosok, emailek: m.emailek, tetelek: m.tetelek, csoportVan: m.csoportVan } : linkOsszefesul(m);
+    const nevek = m.orvosok.length <= 3 ? ` (${m.orvosok.join(', ')})` : '';
+    const megjegyzes = [
+      minta ? 'A beépített mintaadatok (Peti, Dani, Anna) helyére kerül.' : 'A többi orvos és tétel nem változik.',
+      BEEPITETT_BONGESZO ? 'Ez egy alkalmazáson belüli böngésző (például Messenger): az árak csak itt lesznek meg. Ha Chrome-ban vagy Safariban használod az árlistát, ott nyisd meg a linket (fent: Link másolása).' : '',
+      IOS_BONGESZOBEN ? 'iPhone-on a kezdőképernyőre tett alkalmazás külön tárolja az adatait: ha onnan használod az árlistát, ott az Árak lap „Betöltés linkből” gombjával illeszd be ezt a linket.' : ''
+    ].filter(Boolean).join(' ');
+    const ok = await valtozasParbeszed({ cim: 'Árak betöltése linkből', forras: `${m.orvosok.length}${NBSP}orvos${nevek}, ${m.tetelek.length}${NBSP}tétel`, uj, figy: m.figy, igenSzoveg: 'Betöltés',
+      regi: minta ? { orvosok: [], tetelek: [] } : null, megjegyzes });
+    if (!ok || kovetkezoLink) return false;
+    const voltValasztott = !!(valasztas.orvosId && orvosById(valasztas.orvosId));
+    adatokFelulir(uj, m.orvosok.length <= 3 ? `link: ${m.orvosok.join(', ')}` : 'link');
+    if (!voltValasztott && m.orvosok.length === 1) {
+      const o = adat.orvosok.find(x => norm(x.nev) === norm(m.orvosok[0]));
+      if (o && valasztas.orvosId !== o.id) { orvosValaszt(o.id); orvosValasztoRajzol(); }
+    }
+    if (IOS_BONGESZOBEN) uzenet('Ha a kezdőképernyőről használod az árlistát, ott illeszd be ezt a linket (Árak → Betöltés linkből).', { ido: 15000, gomb: 'Link másolása', kattintas: () => linkMasolas(link, 'A link a vágólapra került. Az alkalmazásban: Árak → Betöltés linkből.') });
+    return true;
+  } finally {
+    linkFolyamatban = false;
+    if (kovetkezoLink) { const k = kovetkezoLink; kovetkezoLink = null; setTimeout(() => linkBetolt(k), 0); }
+  }
+}
+function linkACimbol() {                          // megnyitáskor (vagy ha a címsorba illesztik): a link feldolgozása
+  if (!location.hash.startsWith(LINK_ELO)) return;
+  const link = location.href;
+  // a cím csak a döntés után tisztul: ha közben újratöltődik a lap (pl. a háttérből), a link nem vész el
+  linkBetolt(link).finally(() => {
+    if (location.href === link) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* nincs */ } }
+  });
+}
+window.addEventListener('hashchange', () => { if (location.hash.startsWith(LINK_ELO)) linkACimbol(); });
+
+$('#linkKuldesGomb').addEventListener('click', async () => {
+  if (!adat.orvosok.length || !adat.tetelek.length) { uzenet('Nincs mit elküldeni: előbb adj meg orvost és tételt.', { hiba: true }); return; }
+  let link;
+  try { link = await linkKeszit(nevesForma(adat)); } catch (e) { uzenet('A link elkészítése nem sikerült. Használd a mentést fájlba.', { hiba: true }); return; }
+  if (link.length > LINK_TILT) { parbeszed({ cim: 'Túl sok adat egy linkhez', leiras: 'Ennyi ár nem fér el biztonságosan egy linkben. Használd a „Mentés fájlba” gombot, vagy a GitHub-mentést.' }); return; }
+  const mezo = linkMezo(link);
+  const masolSiker = 'A link a vágólapra került. Küldd el magadnak (például e-mailben), és nyisd meg a másik eszközön.';
+  const masol = async () => {
+    try { await navigator.clipboard.writeText(link); dlgBezar(null); uzenet(masolSiker, { ido: 8000 }); }
+    catch (e) { mezo.focus(); uzenet('Bökj a linkre, jelöld ki, és másold ki.', { hiba: true }); }
+  };
+  const gombok = [{ szoveg: 'Bezárás', ertek: null, tipus: 'masod' }, { szoveg: 'Másolás', tipus: navigator.share ? 'masod' : 'fo', kattintas: () => { masol(); return false; } }];
+  if (navigator.share) gombok.push({ szoveg: 'Megosztás', ikon: 'megoszt', tipus: 'fo', kattintas: () => {
+    navigator.share({ title: `${C.cegnev} árak`, text: `${C.cegnev} árak (${adat.orvosok.length}${NBSP}orvos, ${adat.tetelek.length}${NBSP}tétel). Nyisd meg ezt a linket azon az eszközön, ahová az árakat át szeretnéd tenni:`, url: link })
+      .then(() => dlgBezar(null)).catch(e => { if (!e || e.name !== 'AbortError') { mezo.focus(); uzenet('A megosztás nem sikerült: bökj a linkre, jelöld ki, és másold ki.', { hiba: true }); } });
+    return false;
+  } });
+  const tartalom = el('div', { style: 'display:grid;gap:12px' },
+    el('p', { text: `A link ${adat.orvosok.length}${NBSP}orvos és ${adat.tetelek.length}${NBSP}tétel árát tartalmazza. Nyisd meg azon az eszközön, ahová át szeretnéd tenni őket: ott megmutatja, mi változik, és csak jóváhagyás után tölti be. Az ott lévő többi orvos megmarad.` }),
+    mezo);
+  if (link.length > LINK_FIGYELMEZTET) tartalom.append(el('div', { class: 'figyelmeztetes', text: `A link hosszú (${szam(link.length)}${NBSP}karakter): üzenetküldőben (Viber, Telegram, SMS) levágódhat. Küldd el e-mailben, vagy használd a mentést fájlba.` }));
+  if (IOS) tartalom.append(el('p', { class: 'halvany', text: 'iPhone-on, ha a kezdőképernyőről használod az árlistát, a linket ott az Árak → Betöltés linkből gombbal illeszd be.' }));
+  tartalom.append(el('p', { class: 'halvany', text: 'A link maga az árlista: csak annak küldd el, aki láthatja az árakat.' }));
+  parbeszed({ cim: 'Küldés linkben', szeles: true, gombok, tartalom });
+});
+$('#linkBetoltesGomb').addEventListener('click', async () => {
+  const inp = el('input', { id: 'linkBeMezo', type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'https://…#adatok=…' });
+  const hiba = el('p', { class: 'mezo-hiba', hidden: true });
+  let beirt = '';
+  const ok = await parbeszed({ cim: 'Betöltés linkből', fokusz: inp,
+    tartalom: el('div', { style: 'display:grid;gap:12px' },
+      el('p', { text: 'Illeszd be a másik eszközön a „Küldés linkben” gombbal készült linket.' }),
+      el('div', { class: 'mezo' }, el('label', { for: 'linkBeMezo', text: 'Link' }), inp, hiba)),
+    gombok: [{ szoveg: 'Mégse', ertek: false, tipus: 'masod' }, { szoveg: 'Tovább', ertek: true, tipus: 'fo', kattintas: () => {
+      beirt = inp.value.trim();
+      if (!beirt.includes(LINK_ELO)) { hiba.textContent = beirt ? 'Ebben nincsenek árak. A teljes linket illeszd be.' : 'Illeszd be a linket.'; hiba.hidden = false; inp.focus(); return false; }
+      return true;
+    } }] });
+  if (ok) linkBetolt(beirt);
+});
 
 function indul() {
   fejlecLogo();
@@ -3397,6 +3650,7 @@ function indul() {
   $('#mentesekGomb').innerHTML = ikon('archiv');
   $('#mentesekGomb').hidden = !ghKesz();
   nezetBeallit();
+  linkACimbol();
   if (serultAdatJelzes) uzenet('A tárolt árak sérültek voltak, ezért az alapadatok töltődtek be. A sérült adat külön megmaradt; ha van mentésed, töltsd vissza az Árak lapon.', { hiba: true, ido: 15000 });
   const tetlen = window.requestIdleCallback || (fn => setTimeout(fn, 400));
   tetlen(async () => {
@@ -3415,7 +3669,7 @@ function indul() {
 }
 
 // teszteléshez és hibakereséshez (a felület nem használja)
-window.dentAl = { hangErtelmez, keresesTalalatok, verzio: VERZIO, pdfBemenet, elokeszit, get elokeszitett() { return elokeszitett; }, szam, ft, datumok, sorszamKovetkezo, offlineAllapot, nevelo, cimzettNev, fajlnev, arErtelmez };
+window.dentAl = { linkKeszit, linkOlvas, hangErtelmez, keresesTalalatok, verzio: VERZIO, pdfBemenet, elokeszit, get elokeszitett() { return elokeszitett; }, szam, ft, datumok, sorszamKovetkezo, offlineAllapot, nevelo, cimzettNev, fajlnev, arErtelmez };
 
 indul();
 })();
