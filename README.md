@@ -39,7 +39,10 @@ Androidon az `index.html` Chrome-ban megnyitható (például a Letöltések mapp
 
 1. Válaszd ki az orvost.
 2. A **Dátum** mezőben alapból a mai nap áll. Ha más napra kell az árlista, itt válaszd ki; a **Ma** gomb visszaállítja.
-3. Állítsd be a mennyiségeket a −/+ gombokkal vagy beírással. Több mint 8 tételnél kereső is megjelenik.
+3. Állítsd be a mennyiségeket a −/+ gombokkal vagy beírással. A tételek csoportonként jelennek meg (pl. Rögzített pótlások, Kombinált munkák, Protetika).
+   - **Kereső** (több mint 8 tételnél): írd be a tétel nevének egy részét (pl. „cirk”), és a legördülő listában koppints a tételre: minden koppintás +1 db. Az elírást is megérti („fogsr jav”). Számítógépen a nyilakkal és Enterrel is választhatsz.
+   - **Bemondás** (mikrofon gomb): mondd be, amit kérsz, pl. „két cirkon korona, egy ínymaszk és három műfog”, majd koppints a **Kész** gombra. A szám megadja a darabszámot (szám nélkül +1 db), a „még egy …” hozzáad a meglévőhöz, és az orvos nevét is bemondhatod. Utána megmutatja, mit állított be; ha valamit nem ismert fel biztosan (pl. „két korona”), felajánlja a lehetséges tételeket. A **Visszavonás** mindent visszaállít. Chrome-ban (Android) és Safariban (iPhone) működik; a beszédfelismeréshez internet kell, és első használatkor engedélyezni kell a mikrofont.
+   - **Csak a kiválasztottak**: a lista csak a beállított tételeket mutatja; a **Mind a … tétel** gomb hozza vissza a teljes listát.
 4. Alul látod a kiválasztott tételek számát és az élő végösszeget.
 5. **Előnézet**: megmutatja a kész PDF-et. **PDF letöltése** / **Megosztás**: elkészíti és letölti vagy megosztja (nyomtató, e-mail, üzenetküldő).
 6. **Gmail**: telefonon a megosztást nyitja meg kitöltött tárggyal és levélszöveggel, a PDF-fel csatolva; ott válaszd a Gmailt, és írd be a címzettet. Számítógépen a PDF letöltődik, és megnyílik a Gmail új levele a címzettel, tárggyal és szöveggel kitöltve; a PDF-et a Letöltések mappából csatold. A címzettet az orvos e-mail-címéből veszi (Árak lap → az orvos nevére koppintva adható meg).
@@ -56,6 +59,7 @@ Tudnivalók:
    - az 1. sorban, a **B1** cellától jobbra az orvosok nevei;
    - az **A** oszlopban, az **A2** cellától lefelé a tételek;
    - a metszéspontokban az egységárak forintban (üres cella: az orvosnak nincs ára arra a tételre).
+   - csoportcím (nem kötelező): egy sor, amelynek az **A** cellája kettősponttal végződik (pl. `Protetika:`), és nincs benne ár. Az alatta lévő tételek ebbe a csoportba kerülnek; a csoportok a listában, az Árak lapon és a PDF-ben is megjelennek.
 2. Az alkalmazásban: **Árak → Excel-fájl kiválasztása**, majd válaszd ki a `.xlsx` vagy `.xlsm` fájlt. A régi `.xls` is működik.
 3. Az előnézet megmutatja, hány orvos és hány tétel van a fájlban, melyik ár változik, és mi kerül be vagy ki. Az **Árak felülírása** gomb menti el.
 4. Ha mégsem jó, a megjelenő **Visszavonás** gombbal vagy az Árak lap *Visszaállítás az utolsó betöltés előtti árakra* gombjával visszaállíthatod.
