@@ -1,0 +1,2 @@
+# a teszt-mintafájlok bájtra pontosan maradjanak (sorvég-átalakítás nélkül)
+tests/fixtures/** binary
