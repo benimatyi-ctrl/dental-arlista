@@ -1,0 +1,16 @@
+{
+  "name": "dental-arlista-tesztek",
+  "private": true,
+  "description": "A dentÁl árlista-generáló automatizált tesztjei (Playwright, Chromium + WebKit, mobil és asztali nézet)",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium-*",
+    "test:webkit": "playwright test --project=webkit-*",
+    "test:jelentes": "playwright show-report"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/test": "1.63.0"
+  }
+}

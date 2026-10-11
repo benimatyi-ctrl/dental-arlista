@@ -1,3 +1,9 @@
 _fejlesztes/
 .claude/
 adatok/
+node_modules/
+test-results/
+playwright-report/
+tests/.cache/
+tests/kimenet/
+tests/fixtures/privat/

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<title>PDF-elemző (csak a tesztekhez)</title>
+<!-- A tesztek ezen az oldalon elemzik az alkalmazás PDF-jeit, ugyanazzal a pdf.js-sel, amit az alkalmazás is használ.
+     A CDN-kéréseket a tesztkeret a tests/.cache helyi másolatából szolgálja ki. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- a feldolgozó a fő szálon (window.pdfjsWorker), mint az alkalmazásban: a WebKit a blob-címes workert nem indítja -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+</head>
+<body>
+<script>
+(async () => {
+
+  function bajtok(b64) { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+  const nyit = b64 => pdfjsLib.getDocument({ data: bajtok(b64), isEvalSupported: false }).promise;
+
+  // oldalszám, oldalméret (pt), szövegelemek (x, y a bal alsó saroktól, pt), betűk (beágyazott-e), metaadatok
+  window.elemez = async b64 => {
+    const doc = await nyit(b64);
+    const oldal = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const p = await doc.getPage(i);
+      const vp = p.getViewport({ scale: 1 });
+      const tc = await p.getTextContent();
+      await p.getOperatorList();                      // a betűk betöltése (commonObjs)
+      const nevek = [...new Set(tc.items.map(t => t.fontName).filter(Boolean))];
+      const betuk = nevek.map(n => {
+        let f = null; try { f = p.commonObjs.get(n); } catch (e) { /* nincs */ }
+        return { nev: f ? f.name : n, beagyazott: f ? !f.missingFile : null };
+      });
+      oldal.push({
+        w: vp.width, h: vp.height, forgatas: p.rotate,
+        elemek: tc.items.filter(t => t.str !== undefined).map(t => ({ s: t.str, x: t.transform[4], y: t.transform[5], w: t.width, h: t.height, font: t.fontName })),
+        betuk
+      });
+    }
+    const meta = await doc.getMetadata().catch(() => ({ info: {} }));
+    return { oldalak: doc.numPages, oldal, info: meta.info || {} };
+  };
+
+  // képpé alakítás; szurke: szürkeárnyalatos (fénysűrűség, Rec. 709); a statisztikához a teljes kép átlagos tintája
+  window.kep = async (b64, { skala = 2, szurke = false, oldal = 1 } = {}) => {
+    const doc = await nyit(b64);
+    const p = await doc.getPage(oldal);
+    const vp = p.getViewport({ scale: skala });
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+    await p.render({ canvasContext: cx, viewport: vp }).promise;
+    const kep = cx.getImageData(0, 0, cv.width, cv.height); const d = kep.data;
+    let tinta = 0;
+    const sorFeny = new Float32Array(cv.height);      // soronkénti átlagos fénysűrűség (0 fekete … 1 fehér)
+    for (let y = 0; y < cv.height; y++) {
+      let ossz = 0;
+      for (let x = 0; x < cv.width; x++) {
+        const i = (y * cv.width + x) * 4;
+        const L = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        if (szurke) { const v = Math.round(L * 255); d[i] = d[i + 1] = d[i + 2] = v; }
+        ossz += L; tinta += 1 - L;
+      }
+      sorFeny[y] = ossz / cv.width;
+    }
+    if (szurke) cx.putImageData(kep, 0, 0);
+    return { png: cv.toDataURL('image/png'), w: cv.width, h: cv.height, atlagTinta: tinta / (cv.width * cv.height), sorFeny: Array.from(sorFeny), skala };
+  };
+  window.nezoKesz = true;
+})();
+</script>
+</body>
+</html>
